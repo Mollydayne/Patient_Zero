@@ -1,0 +1,12 @@
+{
+  "name": "patient-zero",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "start": "concurrently \"npm start --prefix server\" \"npm run preview --prefix client\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
