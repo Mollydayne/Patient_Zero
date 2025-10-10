@@ -1,15 +1,20 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
-
-// 1) Si tu utilises Tailwind, garde index.css
 import "./index.css";
-
-// 2) Nos styles “maquette claire”
 import "./style.css";
+
+// importe le provider
+import { RegistrationProvider } from "./context/RegistrationContext.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter>
+      {/* on entoure App avec le provider */}
+      <RegistrationProvider>
+        <App />
+      </RegistrationProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );
