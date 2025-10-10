@@ -1,19 +1,28 @@
+import React, { useEffect, useState } from 'react'
 
-import React from "react";
-import { NavLink } from "react-router-dom";
 
-export default function Navbar() {
-  return (
-    <header className="border-b border-neutral-800/70 bg-neutral-950/70 sticky top-0 backdrop-blur">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
-        <div className="font-bold tracking-wide text-lg">🩺 Patient Zero</div>
-        <nav className="flex items-center gap-4 text-sm">
-          <NavLink to="/" className={({isActive})=> isActive? "text-white" : "text-neutral-400 hover:text-white"}>Dashboard</NavLink>
-          <NavLink to="/patients" className={({isActive})=> isActive? "text-white" : "text-neutral-400 hover:text-white"}>Patients</NavLink>
-          <NavLink to="/admin" className={({isActive})=> isActive? "text-white" : "text-neutral-400 hover:text-white"}>Admin</NavLink>
-        </nav>
-        <div className="ml-auto text-neutral-400 text-sm">ENV: <span className="text-white">{import.meta.env.VITE_API_URL || "http://localhost:4000"}</span></div>
-      </div>
-    </header>
-  );
+export default function TopBar(){
+return (
+<header className="topbar">
+<div className="topbar__left">
+<button className="btn btn--outline">Profil</button>
+</div>
+<div className="topbar__center"></div>
+<div className="topbar__right">
+<Clock />
+</div>
+</header>
+)
+}
+
+
+function Clock(){
+const [now, setNow] = useState(new Date())
+useEffect(()=>{
+const id = setInterval(()=>setNow(new Date()), 1000)
+return ()=>clearInterval(id)
+},[])
+const date = now.toLocaleDateString('fr-FR',{ day:'2-digit', month:'2-digit', year:'numeric'})
+const time = now.toLocaleTimeString('fr-FR',{ hour:'2-digit', minute:'2-digit'})
+return <div className="clock">{date}<br/>{time}</div>
 }

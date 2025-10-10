@@ -1,0 +1,44 @@
+:root{
+  --bg:#EADEDA; --ink:#1c1b1b; --muted:#5b5858;
+  --primary:#8A3033; --primary-2:#823329;
+  --alt-1:#998888; --alt-2:#BFB8AD;
+}
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui}
+
+.app.light{min-height:100dvh;display:flex;flex-direction:column}
+.container{max-width:980px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:28px}
+.footer{padding:24px 16px;text-align:center}
+.muted{color:var(--muted)}
+
+.topbar{position:sticky;top:0;background:rgba(234,222,218,.8);
+  backdrop-filter:saturate(1.2) blur(6px);
+  display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;
+  padding:10px 16px;border-bottom:1px solid var(--alt-2);z-index:10}
+.topbar__left{justify-self:start}
+.topbar__center{justify-self:center}
+.topbar__right{justify-self:end}
+.clock{font-weight:600;text-align:right;line-height:1.1}
+
+.btn{appearance:none;border:none;cursor:pointer;padding:.65rem 1rem;border-radius:999px;
+  background:var(--primary);color:#fff;font-weight:700;transition:transform .15s, background .2s}
+.btn:hover{background:var(--primary-2);transform:translateY(-1px)}
+.btn--outline{background:transparent;color:var(--ink);border:2px solid var(--alt-2)}
+.btn--outline:hover{border-color:var(--primary);color:var(--primary)}
+
+.logoHeader{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:8px}
+.logoPlaceholder{width:160px;height:80px;border:2px dashed var(--alt-1);border-radius:12px;background:rgba(255,255,255,.35)}
+.byline{color:var(--muted);font-style:italic}
+
+.searchSection{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:8px}
+.searchBar{width:min(720px,95%);display:flex;align-items:center;gap:8px;border:2px solid var(--ink);
+  border-radius:999px;padding:8px 10px;background:#fff}
+.searchBar .searchIcon{color:var(--muted);display:inline-flex}
+.searchBar input{flex:1;border:none;outline:none;font-size:1rem;background:transparent;color:var(--ink)}
+.hint{color:var(--muted);font-size:.95rem}
+
+.recent h2{font-size:1.1rem;margin:10px 2px 12px}
+.recent__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.recent__card{height:150px;border-radius:18px;background:#7bc1d0;box-shadow:0 6px 20px rgba(0,0,0,.12);border:2px solid rgba(0,0,0,.08)}
+@media (max-width:680px){.recent__grid{grid-template-columns:1fr}}

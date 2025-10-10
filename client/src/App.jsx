@@ -1,15 +1,17 @@
+import TopBar from './components/TopBar.jsx'
+import LogoHeader from './components/LogoHeader.jsx'
+import { SearchSection, RecentViewed } from './components/HomeSections.jsx'
 
-import React from "react";
-import { Outlet, NavLink } from "react-router-dom";
-import Navbar from "./components/Navbar.jsx";
-
-export default function App() {
+export default function App(){
   return (
-    <div className="min-h-screen">
-      <Navbar />
-      <main className="max-w-6xl mx-auto px-4 py-6">
-        <Outlet />
+    <div className="app light">
+      <TopBar />
+      <main className="container">
+        <LogoHeader />
+        <SearchSection />
+        <RecentViewed />
       </main>
+      <footer className="footer muted">© {new Date().getFullYear()} Patient Zero</footer>
     </div>
-  );
+  )
 }
