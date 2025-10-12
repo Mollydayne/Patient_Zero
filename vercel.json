@@ -1,0 +1,8 @@
+{
+  "redirects": [
+    { "source": "/", "destination": "/patients", "permanent": true }
+  ],
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}

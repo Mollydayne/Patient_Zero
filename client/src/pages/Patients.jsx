@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom"; // 👈 ajout de useNavigate
+import { Link, useNavigate } from "react-router-dom"; //ajout de useNavigate
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -7,7 +7,7 @@ export default function Patients() {
   const [query, setQuery] = useState("");
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate(); // 👈 création du hook de navigation
+  const navigate = useNavigate(); // création du hook de navigation
 
   const search = async () => {
     setLoading(true);
@@ -43,13 +43,14 @@ export default function Patients() {
 
         {/* Bouton inscription */}
         <div className="mt-4">
-          <button
-            onClick={() => navigate("/register-patient")}
-            className="bg-[#8A3033] text-white px-4 py-2 rounded-lg shadow hover:bg-[#823329] transition-colors"
-          >
-            Inscrire un patient
-          </button>
-        </div>
+  <Link
+    to="/register"
+    className="bg-[#8A3033] text-white px-4 py-2 rounded-lg shadow hover:bg-[#823329] transition-colors inline-flex items-center justify-center"
+  >
+    Inscrire un patient
+  </Link>
+</div>
+
       </div>
 
       {/* Liste des patients */}

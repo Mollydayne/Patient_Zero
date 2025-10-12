@@ -1,28 +1,26 @@
-import React, { useEffect, useState } from 'react'
+import { Link, useLocation } from "react-router-dom";
 
+// Barre de navigation minimaliste : un seul bouton "Accueil" centré en haut de la page.
+export default function Navbar() {
+  // useLocation sert uniquement à savoir si on se trouve déjà sur la page /patients
+  const location = useLocation();
 
-export default function TopBar(){
-return (
-<header className="topbar">
-<div className="topbar__left">
-<button className="btn btn--outline">Profil</button>
-</div>
-<div className="topbar__center"></div>
-<div className="topbar__right">
-<Clock />
-</div>
-</header>
-)
-}
+  // On vérifie si la page actuelle est "/patients" pour adapter le style du bouton
+  const isActive = location.pathname === "/patients";
 
-
-function Clock(){
-const [now, setNow] = useState(new Date())
-useEffect(()=>{
-const id = setInterval(()=>setNow(new Date()), 1000)
-return ()=>clearInterval(id)
-},[])
-const date = now.toLocaleDateString('fr-FR',{ day:'2-digit', month:'2-digit', year:'numeric'})
-const time = now.toLocaleTimeString('fr-FR',{ hour:'2-digit', minute:'2-digit'})
-return <div className="clock">{date}<br/>{time}</div>
+  return (
+    <nav className="navbar flex justify-center mt-4">
+      <Link
+        to="/patients"
+        className={`text-sm font-medium px-4 py-2 rounded-full transition-colors duration-200 border 
+          ${
+            isActive
+              ? "bg-[#8A3033] text-[#EADEDA] border-[#8A3033]"
+              : "text-[#8A3033] border-[#8A3033]/40 hover:bg-[#8A3033]/10"
+          }`}
+      >
+        Accueil
+      </Link>
+    </nav>
+  );
 }
