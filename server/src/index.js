@@ -10,7 +10,7 @@ app.use(express.json());
 // --- CORS “prod-ready” ---
 // Autorise localhost DEV + toutes les previews/prod Vercel (*.vercel.app)
 const allowList = [
-  "http://localhost:5173",
+  "http://localhost:5174",
   ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",") : []),
 ];
 const vercelRegex = /\.vercel\.app$/; // autorise foo-bar.vercel.app

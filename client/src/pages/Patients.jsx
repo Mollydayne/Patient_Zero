@@ -26,13 +26,13 @@ export default function Patients() {
   }, []);
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 bg-neutral-100">
       {/* Barre de recherche */}
       <div className="card p-4">
         <div className="flex gap-2">
           <input
             className="input"
-            placeholder="Rechercher par nom ou ID..."
+            placeholder="Rechercher par nom ou numéro..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -62,7 +62,7 @@ export default function Patients() {
             <Link
               key={p.id}
               to={`/patients/${p.id}`}
-              className="card p-4 hover:bg-neutral-900"
+              className="card p-4 hover:bg-neutral-100"
             >
               <div className="flex items-center justify-between">
                 <div>

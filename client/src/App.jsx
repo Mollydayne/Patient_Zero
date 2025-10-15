@@ -20,7 +20,7 @@ import RegisterSummary from "./pages/RegisterSummary.jsx";
 
 export default function App() {
   return (
-    <div className="app light">
+    <div className="app light bg-neutral-100">
       {/* Barre du haut (profil + horloge) */}
       <TopBar />
       {/* Navbar (actuellement juste un bouton Accueil → /patients) */}

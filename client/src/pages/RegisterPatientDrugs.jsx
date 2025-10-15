@@ -27,10 +27,10 @@ export default function RegisterPatientDrugs() {
       {/* Card */}
       <div className="w-full max-w-4xl border border-gray-700 rounded-lg p-0 overflow-hidden bg-[#1E1E1E]">
         {/* Section Header */}
-        <div className="bg-[#8A3033] text-white px-6 py-2 text-lg font-semibold rounded-t-lg relative">
-          <div className="absolute -left-5 top-1/2 -translate-y-1/2 w-10 h-10 bg-[#1E1E1E] border-4 border-[#8A3033] rounded-full" />
-          Antécédents
+        <div className="bg-[#0aa15d] text-white px-6 py-2 text-lg font-semibold rounded-t-lg relative">
+          <span className="ml-20">Antécédents</span>
         </div>
+                         <div className="absolute ml-4 -mt-16 w-20 h-20 bg-white rounded-full z-10 border-2 border-[#0aa15d] flex items-center justify-center">Test</div>
 
         {/* Fields */}
         <form className="grid grid-cols-2 gap-4 p-6">

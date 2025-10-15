@@ -23,17 +23,17 @@ export default function RegisterPatientSituation() {
       {/* Card */}
       <div className="w-full max-w-4xl border border-gray-700 rounded-lg p-0 overflow-hidden bg-[#1E1E1E]">
         {/* Section Header */}
-        <div className="bg-[#8A3033] text-white px-6 py-2 text-lg font-semibold rounded-t-lg relative">
-          <div className="absolute -left-5 top-1/2 -translate-y-1/2 w-10 h-10 bg-[#1E1E1E] border-4 border-[#8A3033] rounded-full" />
-          Situation
+        <div className="bg-[#0aa15d] text-white px-6 py-2 text-lg font-semibold rounded-t-lg relative">
+          <span className="ml-20">Situation familiale</span>
         </div>
+                         <div className="absolute ml-4 -mt-16 w-20 h-20 bg-white rounded-full z-10 border-2 border-[#0aa15d] flex items-center justify-center">Test</div>
 
         {/* Fields */}
         <form className="grid grid-cols-2 gap-4 p-6">
           {/* Situation matrimoniale */}
           <div className="flex flex-col">
             <label className="text-sm mb-1 text-gray-300">Situation matrimoniale</label>
-            <select className="border border-gray-500 bg-[#121212] text-gray-100 px-2 py-1 focus:outline-none focus:border-[#FFD29D]">
+            <select className="border border-gray-500 bg-white text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]">
               <option>-- Sélectionner --</option>
               <option>Célibataire</option>
               <option>En couple</option>
@@ -48,7 +48,7 @@ export default function RegisterPatientSituation() {
             <label className="text-sm mb-1 text-gray-300">Métier</label>
             <input
               type="text"
-              className="border border-gray-500 bg-transparent text-gray-100 px-2 py-1 focus:outline-none focus:border-[#FFD29D]"
+              className="border border-gray-500 bg-white text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]"
             />
           </div>
 
@@ -57,14 +57,14 @@ export default function RegisterPatientSituation() {
             <label className="text-sm mb-1 text-gray-300">Activité criminelle</label>
             <input
               type="text"
-              className="border border-gray-500 bg-transparent text-gray-100 px-2 py-1 focus:outline-none focus:border-[#FFD29D]"
+              className="border border-gray-500 bg-white text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]"
             />
           </div>
 
           {/* Influence */}
           <div className="flex flex-col">
-            <label className="text-sm mb-1 text-gray-300">Influence</label>
-            <select className="border border-gray-500 bg-[#121212] text-gray-100 px-2 py-1 focus:outline-none focus:border-[#FFD29D]">
+            <label className="text-sm mb-1 text-gray-300"><span className="text-red-500">(Réservé au soignant) </span>Influence</label>
+            <select className="border border-gray-500 bg-white text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]">
               <option>-- Sélectionner --</option>
               <option>Faible</option>
               <option>Moyenne</option>
