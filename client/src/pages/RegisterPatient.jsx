@@ -1,6 +1,7 @@
 // RegisterPatient.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useRegistration } from "../context/RegistrationContext.jsx";
 
 /**
  * Page 1 — Inscription patient : Informations personnelles
@@ -10,15 +11,16 @@ import { useNavigate } from "react-router-dom";
  */
 export default function RegisterPatient() {
   const navigate = useNavigate();
+  const { draft, setSection } = useRegistration();
 
-  // État du formulaire
+  // État du formulaire (pré-rempli si retour arrière)
   const [form, setForm] = useState({
-    lastname: "",
-    firstname: "",
-    phone: "",
-    address: "",
-    religion: "",
-    socialScore: "",
+    lastname: draft?.patient?.lastname || "",
+    firstname: draft?.patient?.firstname || "",
+    phone: draft?.patient?.phone || "",
+    address: draft?.patient?.address || "",
+    religion: draft?.patient?.religion || "",
+    socialScore: draft?.patient?.socialScore || "",
   });
 
   // Mise à jour des champs du formulaire
@@ -27,18 +29,15 @@ export default function RegisterPatient() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Validation et navigation vers l'étape suivante
-  const handleNext = async () => {
-    // Vérification minimale
+  // Validation, sauvegarde contexte et navigation
+  const handleNext = () => {
     if (!form.lastname.trim() || !form.firstname.trim()) {
       alert("Veuillez renseigner au minimum le nom et le prénom.");
       return;
     }
-
-    // TODO : enregistrement en base de données (exemple à brancher plus tard)
-    // const res = await fetch(`${API}/api/patients`, { ... });
-
-    // Navigation vers la page suivante
+    // ✅ Sauvegarde dans le contexte global d'inscription
+    setSection("patient", form);
+    // ➜ Étape suivante
     navigate("/register/situation");
   };
 
@@ -50,18 +49,21 @@ export default function RegisterPatient() {
       </div>
 
       {/* Titre de la page */}
-      <div className="w-full flex justify-end mr-6"><h1 className="text-3xl text-[#0AA15D] mb-6 self-start max-w-4xl">
-        Nouveau patient
-      </h1></div>
+      <div className="w-full flex justify-end mr-6">
+        <h1 className="text-3xl text-[#0AA15D] mb-6 self-start max-w-4xl">
+          Nouveau patient
+        </h1>
+      </div>
 
       {/* Bloc formulaire */}
       <div className="w-full max-w-4xl rounded-lg overflow-hidden bg-[#F0F0F0]">
-        {/* Bandeau de section */}
-
         <div className="bg-[#0aa15d] text-white px-6 py-2 text-lg font-semibold rounded-t-lg relative">
           <span className="ml-20">Informations personnelles</span>
         </div>
-                         <div className="absolute ml-4 -mt-16 w-20 h-20 bg-white rounded-full z-10 border-2 border-[#0aa15d] flex items-center justify-center">Test</div>
+
+        <div className="absolute ml-4 -mt-16 w-20 h-20 bg-white rounded-full z-10 border-2 border-[#0aa15d] flex items-center justify-center">
+          Test
+        </div>
 
         {/* Formulaire contrôlé */}
         <form
@@ -73,9 +75,7 @@ export default function RegisterPatient() {
         >
           {/* Nom */}
           <div className="flex flex-col">
-            <label htmlFor="lastname" className="text-sm mb-1">
-              Nom
-            </label>
+            <label htmlFor="lastname" className="text-sm mb-1">Nom</label>
             <input
               id="lastname"
               name="lastname"
@@ -89,9 +89,7 @@ export default function RegisterPatient() {
 
           {/* Prénom */}
           <div className="flex flex-col">
-            <label htmlFor="firstname" className="text-sm mb-1">
-              Prénom
-            </label>
+            <label htmlFor="firstname" className="text-sm mb-1">Prénom</label>
             <input
               id="firstname"
               name="firstname"
@@ -105,9 +103,7 @@ export default function RegisterPatient() {
 
           {/* Téléphone */}
           <div className="flex flex-col">
-            <label htmlFor="phone" className="text-sm mb-1">
-              Téléphone
-            </label>
+            <label htmlFor="phone" className="text-sm mb-1">Téléphone</label>
             <input
               id="phone"
               name="phone"
@@ -122,9 +118,7 @@ export default function RegisterPatient() {
 
           {/* Adresse */}
           <div className="flex flex-col">
-            <label htmlFor="address" className="text-sm mb-1">
-              Adresse
-            </label>
+            <label htmlFor="address" className="text-sm mb-1">Adresse</label>
             <select
               id="address"
               name="address"
@@ -141,15 +135,13 @@ export default function RegisterPatient() {
               <option value="Red Forge">Red Forge</option>
               <option value="Rose Crown">Rose Crown</option>
               <option value="Verdant Empire">Verdant Empire</option>
-              <option value="Extérieur de Los Santos">Extérieur de Los Santos</option>                            
+              <option value="Extérieur de Los Santos">Extérieur de Los Santos</option>
             </select>
           </div>
 
           {/* Confession */}
           <div className="flex flex-col">
-            <label htmlFor="religion" className="text-sm mb-1">
-              Confession
-            </label>
+            <label htmlFor="religion" className="text-sm mb-1">Confession</label>
             <select
               id="religion"
               name="religion"
@@ -171,9 +163,7 @@ export default function RegisterPatient() {
 
           {/* Score social */}
           <div className="flex flex-col">
-            <label htmlFor="socialScore" className="text-sm mb-1">
-              Score social
-            </label>
+            <label htmlFor="socialScore" className="text-sm mb-1">Score social</label>
             <input
               id="socialScore"
               name="socialScore"
@@ -193,12 +183,14 @@ export default function RegisterPatient() {
           onClick={handleNext}
           className="flex items-center gap-2 text-[#0AA15D]"
         >
-          Valider et<br></br>passer à la suite
-<span className="w-12 h-12 rounded-full bg-[#0AA15D] flex items-center justify-center hover:bg-[#0db569]">
-  <span className="ml-1"><svg width="20" height="20" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M2 2L10 6L2 10V2Z" fill="white"/>
-  </svg></span>
-</span>
+          Valider et<br />passer à la suite
+          <span className="w-12 h-12 rounded-full bg-[#0AA15D] flex items-center justify-center hover:bg-[#0db569]">
+            <span className="ml-1">
+              <svg width="20" height="20" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 2L10 6L2 10V2Z" fill="white"/>
+              </svg>
+            </span>
+          </span>
         </button>
       </div>
     </div>
