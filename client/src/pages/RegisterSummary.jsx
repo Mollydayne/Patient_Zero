@@ -42,7 +42,7 @@ export default function RegisterSummary() {
 
     try {
       setSaving(true);
-      const res = await fetch(`${API_URL}/patients`, {
+      const res = await fetch(`${API_URL}/api/patients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

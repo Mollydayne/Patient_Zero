@@ -85,7 +85,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "missing_fields" });
     }
 
-    // ⚠️ INSERT limité aux colonnes existantes de ta table
+    // INSERT limité aux colonnes existantes de la table
     const row = (
       await query(
         `INSERT INTO patient (firstname, lastname, blood_type, allergies_summary)
