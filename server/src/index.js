@@ -8,49 +8,28 @@ import patientsRouter from "./routes/patients.js";
 const app = express();
 
 /* ================================
-   CORS — doit être avant les routes
+   CORS — simple, clair, avant TOUT
    ================================ */
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  // ajoute ici ton domaine Vercel principal si tu veux être strict :
-  "https://patient-zero-three.vercel.app",
-  ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",") : []),
+  "https://patient-zero-three.vercel.app", // prod (Vercel)
+  "http://localhost:5173",                 // dev local
 ];
-// autorise aussi les previews prod sur *.vercel.app
-const vercelHostnameRegex = /\.vercel\.app$/;
 
 app.use(cors({
-  origin(origin, cb) {
-    // Autoriser les requêtes sans Origin (curl, healthchecks)
-    if (!origin) return cb(null, true);
-
-    try {
-      const { hostname } = new URL(origin);
-      if (
-        allowedOrigins.includes(origin) ||
-        vercelHostnameRegex.test(hostname)
-      ) {
-        return cb(null, true);
-      }
-    } catch {
-      // origin malformé -> on laissera refuser ci-dessous
-    }
-    return cb(new Error("Not allowed by CORS"));
-  },
+  origin: allowedOrigins,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: false, // passe à true uniquement si tu utilises des cookies/sessions
+  credentials: false, // passe à true seulement si tu utilises des cookies
 }));
 
-// Preflight global
+// Preflight global (OPTIONS *)
 app.options("*", cors());
 
 /* ====== Middlewares ====== */
 app.use(express.json());
 
 /* ====== Healthcheck ====== */
-app.get("/health", async (req, res) => {
+app.get("/health", async (_req, res) => {
   try {
     await pool.query("select 1");
     res.json({ ok: true });
@@ -63,7 +42,7 @@ app.get("/health", async (req, res) => {
 app.use("/api/patients", patientsRouter);
 
 /* ====== Root ====== */
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   const front = process.env.FRONT_URL || "http://localhost:5173/";
   res
     .type("text")
