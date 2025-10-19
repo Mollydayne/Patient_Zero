@@ -10,17 +10,16 @@ const app = express();
 /* ================================
    CORS — simple, clair, avant TOUT
    ================================ */
-const allowedOrigins = [
-  "https://patient-zero-three.vercel.app", // prod (Vercel)
-  "http://localhost:5173",                 // dev local
-];
+const ALLOWED_ORIGIN = "https://patient-zero-three.vercel.app";
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+  res.header("Vary", "Origin");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
-app.use(cors({
-  origin: allowedOrigins,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: false, // passe à true seulement si tu utilises des cookies
-}));
 
 // Preflight global (OPTIONS *)
 app.options("*", cors());
