@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom"; //ajout de useNavigate
+import { Link } from "react-router-dom";
+import GlossyButton from "../components/GlossyButton.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -7,7 +8,6 @@ export default function Patients() {
   const [query, setQuery] = useState("");
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate(); // création du hook de navigation
 
   const search = async () => {
     setLoading(true);
@@ -26,57 +26,66 @@ export default function Patients() {
   }, []);
 
   return (
-    <section className="space-y-4 bg-neutral-100">
-      {/* Barre de recherche */}
-      <div className="card p-4">
-        <div className="flex gap-2">
-          <input
-            className="input"
-            placeholder="Rechercher par nom ou numéro..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <button className="btn" onClick={search}>
-            Rechercher
-          </button>
+    <section className="min-h-screen bg-[#f7faf8] px-6 py-8">
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Barre de recherche */}
+        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300/80 text-gray-800
+                         focus:outline-none focus:ring-2 focus:ring-[#0aa15d]/50
+                         placeholder:text-gray-400 bg-white/70"
+              placeholder="Rechercher par nom ou numéro…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && search()}
+            />
+            <GlossyButton onClick={search}>Rechercher</GlossyButton>
+          </div>
+
+          {/* Bouton Inscrire un patient */}
+          <div className="mt-4">
+            <GlossyButton to="/register" className="font-medium">
+              + Inscrire un patient
+            </GlossyButton>
+          </div>
         </div>
 
-        {/* Bouton inscription */}
-        <div className="mt-4">
-  <Link
-    to="/register"
-    className="bg-[#8A3033] text-white px-4 py-2 rounded-lg shadow hover:bg-[#823329] transition-colors inline-flex items-center justify-center"
-  >
-    Inscrire un patient
-  </Link>
-</div>
+        {/* Liste des patients */}
+        <div className="grid gap-4">
+          {loading && (
+            <div className="text-gray-500 italic">Chargement en cours…</div>
+          )}
 
-      </div>
+          {!loading && patients.length === 0 && (
+            <div className="text-gray-500 text-center italic py-8">
+              Aucun patient trouvé.
+            </div>
+          )}
 
-      {/* Liste des patients */}
-      <div className="grid gap-3">
-        {loading && <div className="text-neutral-400">Chargement…</div>}
-
-        {!loading &&
-          patients.map((p) => (
-            <Link
-              key={p.id}
-              to={`/patients/${p.id}`}
-              className="card p-4 hover:bg-neutral-100"
-            >
-              <div className="flex items-center justify-between">
+          {!loading &&
+            patients.map((p) => (
+              <Link
+                key={p.id}
+                to={`/patients/${p.id}`}
+                className="flex justify-between items-center bg-white/80 backdrop-blur-sm
+                           p-5 rounded-xl shadow-sm border border-gray-200
+                           hover:shadow-md hover:border-[#0aa15d]/50 transition-all duration-200"
+              >
                 <div>
-                  <div className="font-semibold">
+                  <div className="text-lg font-semibold text-gray-800">
                     {p.lastname} {p.firstname}
                   </div>
-                  <div className="text-sm text-neutral-400">
-                    Adresse: {p.address || "—"} • Tel:{" "}
-                    {p.phone || "—"}
+                  <div className="text-sm text-gray-500">
+                    Adresse : {p.address || "—"} • Tel : {p.phone || "—"}
                   </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+                <span className="text-[#0aa15d] text-sm font-medium">
+                  Voir le dossier →
+                </span>
+              </Link>
+            ))}
+        </div>
       </div>
     </section>
   );

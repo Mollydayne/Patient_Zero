@@ -1,43 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 
-export default function TopBar(){
+export default function TopBar() {
   return (
-    <header className="topbar">
-      <div className="topbar__left">
-        <button className="btn btn--outline">Profil</button>
-      </div>
-      <div className="topbar__center"></div>
-      <div className="topbar__right"><Clock offsetYears={9} /></div>
+    <header
+      className="w-full flex justify-end items-center px-6 py-3
+                 bg-white/60 backdrop-blur-md border-b border-[#0aa15d]/30 shadow-sm"
+    >
+      <Clock offsetYears={9} />
     </header>
-  )
+  );
 }
 
 function addYearsClamped(date, years) {
-  // Ajoute des années en évitant les bugs de 29 fév -> 1er mars
-  const d = new Date(date)
-  const month = d.getMonth()
-  d.setFullYear(d.getFullYear() + years)
-  if (d.getMonth() !== month) d.setDate(0) // recule au dernier jour du mois précédent si overflow
-  return d
+  const d = new Date(date);
+  const month = d.getMonth();
+  d.setFullYear(d.getFullYear() + years);
+  if (d.getMonth() !== month) d.setDate(0);
+  return d;
 }
 
-function Clock({ offsetYears = 0 }){
-  const [now, setNow] = useState(new Date())
+function Clock({ offsetYears = 0 }) {
+  const [now, setNow] = useState(new Date());
+  const [blink, setBlink] = useState(true);
 
+  // Actualisation de l'heure
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(id)
-  }, [])
+    const tick = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(tick);
+  }, []);
 
-  // Date/heure "in-game" = temps réel décalé
-  const gameNow = addYearsClamped(now, offsetYears)
+  // Clignotement des deux-points toutes les secondes
+  useEffect(() => {
+    const blinker = setInterval(() => setBlink((prev) => !prev), 1000);
+    return () => clearInterval(blinker);
+  }, []);
 
-  const d = gameNow.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
-  const t = gameNow.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })
+  const gameNow = addYearsClamped(now, offsetYears);
+  const dateStr = gameNow.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const hours = gameNow.getHours().toString().padStart(2, "0");
+  const minutes = gameNow.getMinutes().toString().padStart(2, "0");
 
   return (
-    <div className="clock text-right leading-tight" data-era={`+${offsetYears}y`}>
-      {d}<br/>{t}
+    <div
+      className="font-mono text-right leading-tight text-[#0aa15d]
+                 drop-shadow-[0_0_8px_rgba(10,161,93,0.4)]"
+      data-era={`+${offsetYears}y`}
+    >
+      <div className="text-lg tracking-widest font-semibold">{dateStr}</div>
+      <div className="text-2xl font-bold select-none">
+        {hours}
+        <span
+          className={`inline-block w-2 text-center ${
+            blink ? "opacity-100" : "opacity-30"
+          } transition-opacity duration-300`}
+        >
+          :
+        </span>
+        {minutes}
+      </div>
     </div>
-  )
+  );
 }
