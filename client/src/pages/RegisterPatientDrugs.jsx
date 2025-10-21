@@ -1,13 +1,17 @@
-// RegisterPatientDrugs.jsx
-import React, { useState } from "react";
+// RegisterPatientDrugs.jsx — refactor glossy vert/transparent aligné sur RegisterPatient.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRegistration } from "../context/RegistrationContext.jsx";
+
+// Même design system que RegisterPatient.jsx
+import FormCard from "../components/form/FormCard.jsx";
+import { Field, Select, TextInput } from "../components/form/Field.jsx";
+import ActionNext from "../components/form/ActionNext.jsx";
 
 export default function RegisterPatientDrugs() {
   const navigate = useNavigate();
   const { draft, setSection } = useRegistration();
 
-  // État local du formulaire (prérempli si retour arrière)
   const [form, setForm] = useState({
     drugUse: draft?.drugs?.drugUse || "",
     frequency: draft?.drugs?.frequency || "",
@@ -15,154 +19,130 @@ export default function RegisterPatientDrugs() {
     influence: draft?.drugs?.influence || "",
   });
 
-  // Met à jour le state local à chaque changement dans un champ
-  const handleChange = (e) => {
+  const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((p) => ({ ...p, [name]: value }));
   };
 
-  // Sauvegarde les données et passe à l'étape suivante
+  // Autosave doux dans le contexte d'inscription
+  useEffect(() => {
+    setSection("drugs", form);
+  }, [form, setSection]);
+
+  // Validation identique dans l'esprit à RegisterPatient.jsx
+  const validate = useMemo(() => {
+    const e = {};
+    if (!form.drugUse) e.drugUse = "Sélectionnez une réponse.";
+    if (form.drugUse && form.drugUse !== "Non" && !form.frequency) e.frequency = "Indiquez la fréquence.";
+    return e;
+  }, [form]);
+
+  const errors = validate;
+  const disableNext = Object.keys(errors).length > 0;
+
   const handleNext = () => {
+    if (disableNext) return;
     setSection("drugs", form);
     navigate("/register/notes");
   };
 
-  // Sauvegarde et revient à l'étape précédente
-  const handleBack = () => {
-    setSection("drugs", form);
-    navigate("/register/situation");
-  };
-
   return (
-    <div className="min-h-screen bg-[#121212] text-gray-100 flex flex-col items-center p-6 font-sans">
-      {/* En-tête visuel */}
-      <div className="w-full max-w-4xl flex justify-between items-start mb-4">
-        <div className="w-48 h-24 flex items-center justify-center shadow-lg" />
-        <div className="text-right text-gray-300">
-          {/* Date et heure affichées par le composant externe */}
-        </div>
+    <section className="min-h-screen bg-[#f7faf8] px-6 py-8 flex justify-center">
+      <div className="w-full max-w-5xl space-y-6">
+        {/*
+          FormCard applique déjà le rendu "glossy" (fond verre dépoli + bord arrondi + accent vert translucide)
+          tel qu'utilisé sur RegisterPatient.jsx. On ne réinvente pas le style ici, on réutilise le même composant.
+        */}
+        <FormCard title="Utilisation de drogues" icon="🧪">
+          <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={(e) => e.preventDefault()}>
+            {/* Consommation de drogues ? */}
+            <Field
+              label="Le patient consomme‑t‑il des drogues ?"
+              id="drugUse"
+              error={errors.drugUse}
+              success={!errors.drugUse && form.drugUse ? "OK" : undefined}
+            >
+              <Select
+                id="drugUse"
+                name="drugUse"
+                value={form.drugUse}
+                onChange={onChange}
+                valid={!errors.drugUse && !!form.drugUse}
+              >
+                <option value="">-- Sélectionner --</option>
+                <option value="Non">Non</option>
+                <option value="Oui, occasionnellement">Oui, occasionnellement</option>
+                <option value="Oui, régulièrement">Oui, régulièrement</option>
+              </Select>
+            </Field>
+
+            {/* Fréquence — activée uniquement si consommation */}
+            <Field
+              label="À quelle fréquence ?"
+              id="frequency"
+              hint={form.drugUse === "Non" || !form.drugUse ? "Désactivé si \"Non\"" : undefined}
+              error={errors.frequency}
+              success={!errors.frequency && form.frequency ? "OK" : undefined}
+            >
+              <Select
+                id="frequency"
+                name="frequency"
+                value={form.frequency}
+                onChange={onChange}
+                disabled={form.drugUse === "Non" || !form.drugUse}
+                valid={!errors.frequency && !!form.frequency}
+              >
+                <option value="">-- Sélectionner --</option>
+                <option value="1× / mois ou moins">1× / mois ou moins</option>
+                <option value="1–3× / semaine">1–3× / semaine</option>
+                <option value="Quotidien">Quotidien</option>
+                <option value="Plusieurs fois / jour">Plusieurs fois / jour</option>
+              </Select>
+            </Field>
+
+            {/* Handicap(s) */}
+            <Field
+              label="Avez‑vous un ou plusieurs handicap(s) ?"
+              id="disability"
+              success={form.disability ? "OK" : undefined}
+            >
+              <Select
+                id="disability"
+                name="disability"
+                value={form.disability}
+                onChange={onChange}
+                valid={!!form.disability}
+              >
+                <option value="">-- Sélectionner --</option>
+                <option value="Non">Non</option>
+                <option value="Oui (moteur)">Oui (moteur)</option>
+                <option value="Oui (sensoriel)">Oui (sensoriel)</option>
+                <option value="Oui (psychique / cognitif)">Oui (psychique / cognitif)</option>
+                <option value="Oui (autre)">Oui (autre)</option>
+              </Select>
+            </Field>
+
+            {/* Réservé au médecin (lecture seule, cohérent DS) */}
+            <Field
+              label="[Réservé au médecin] Influence"
+              id="influence"
+              hint="Champ verrouillé"
+            >
+              <TextInput
+                id="influence"
+                name="influence"
+                value={form.influence}
+                readOnly
+                placeholder="—"
+              />
+            </Field>
+          </form>
+        </FormCard>
+
+        <ActionNext onClick={handleNext}>
+          {disableNext ? "Compléter les champs requis" : "Valider et passer à la suite"}
+        </ActionNext>
       </div>
-
-      {/* Titre principal */}
-      <h1 className="text-3xl text-[#FFD29D] mb-6 self-start max-w-4xl">
-        Nouveau patient
-      </h1>
-
-      {/* Carte de formulaire */}
-      <div className="w-full max-w-4xl border border-gray-700 rounded-lg p-0 overflow-hidden bg-[#1E1E1E]">
-        {/* En-tête de section */}
-        <div className="bg-[#0aa15d] text-white px-6 py-2 text-lg font-semibold rounded-t-lg relative">
-          <span className="ml-20">Antécédents</span>
-        </div>
-
-        <div className="absolute ml-4 -mt-16 w-20 h-20 bg-white rounded-full z-10 border-2 border-[#0aa15d] flex items-center justify-center">
-          Test
-        </div>
-
-        {/* Formulaire contrôlé */}
-        <form
-          className="grid grid-cols-2 gap-4 p-6"
-          onSubmit={(e) => e.preventDefault()}
-        >
-          {/* Consommation de drogues */}
-          <div className="flex flex-col">
-            <label className="text-sm mb-1 text-gray-300">
-              Le patient consomme-t-il des drogues ?
-            </label>
-            <select
-              name="drugUse"
-              value={form.drugUse}
-              onChange={handleChange}
-              className="border border-gray-500 bg-[#121212] text-gray-100 px-2 py-1 focus:outline-none focus:border-[#FFD29D]"
-            >
-              <option value="">-- Sélectionner --</option>
-              <option value="Non">Non</option>
-              <option value="Oui, occasionnellement">Oui, occasionnellement</option>
-              <option value="Oui, régulièrement">Oui, régulièrement</option>
-            </select>
-          </div>
-
-          {/* Fréquence */}
-          <div className="flex flex-col">
-            <label className="text-sm mb-1 text-gray-300">À quelle fréquence ?</label>
-            <select
-              name="frequency"
-              value={form.frequency}
-              onChange={handleChange}
-              className="border border-gray-500 bg-[#121212] text-gray-100 px-2 py-1 focus:outline-none focus:border-[#FFD29D]"
-            >
-              <option value="">-- Sélectionner --</option>
-              <option value="1× / mois ou moins">1× / mois ou moins</option>
-              <option value="1–3× / semaine">1–3× / semaine</option>
-              <option value="Quotidien">Quotidien</option>
-              <option value="Plusieurs fois / jour">Plusieurs fois / jour</option>
-            </select>
-          </div>
-
-          {/* Handicap(s) */}
-          <div className="flex flex-col">
-            <label className="text-sm mb-1 text-gray-300">
-              Avez-vous un ou plusieurs handicap(s) ?
-            </label>
-            <select
-              name="disability"
-              value={form.disability}
-              onChange={handleChange}
-              className="border border-gray-500 bg-[#121212] text-gray-100 px-2 py-1 focus:outline-none focus:border-[#FFD29D]"
-            >
-              <option value="">-- Sélectionner --</option>
-              <option value="Non">Non</option>
-              <option value="Oui (moteur)">Oui (moteur)</option>
-              <option value="Oui (sensoriel)">Oui (sensoriel)</option>
-              <option value="Oui (psychique / cognitif)">
-                Oui (psychique / cognitif)
-              </option>
-              <option value="Oui (autre)">Oui (autre)</option>
-            </select>
-          </div>
-
-          {/* Champ réservé au médecin */}
-          <div className="flex flex-col">
-            <label className="text-sm mb-1 text-red-400">
-              [Réservé au médecin] Influence
-            </label>
-            <select
-              name="influence"
-              value={form.influence}
-              disabled
-              className="border border-gray-600 bg-[#0f0f0f] text-gray-500 px-2 py-1 cursor-not-allowed"
-              title="Réservé au médecin"
-            >
-              <option value="">— Champ verrouillé —</option>
-            </select>
-          </div>
-        </form>
-      </div>
-
-      {/* Boutons de navigation */}
-      <div className="w-full max-w-4xl flex justify-between items-center mt-6">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="flex items-center gap-2 text-[#FFD29D] hover:underline"
-        >
-          <span className="w-8 h-8 rounded-full border-2 border-[#4CC9F0] flex items-center justify-center text-[#4CC9F0]">
-            ◀
-          </span>
-          Revenir à l’étape précédente
-        </button>
-
-        <button
-          type="button"
-          onClick={handleNext}
-          className="flex items-center gap-2 text-[#FFD29D] hover:underline"
-        >
-          Valider et passer à la suite
-          <span className="w-8 h-8 rounded-full border-2 border-[#FFD29D] flex items-center justify-center text-[#FFD29D]">
-            ▶
-          </span>
-        </button>
-      </div>
-    </div>
+    </section>
   );
 }
