@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import GlossyButton from "../components/GlossyButton.jsx";
+import GlossyButton from "../components/ui/GlossyButton.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
 

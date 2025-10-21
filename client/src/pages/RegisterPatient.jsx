@@ -1,198 +1,216 @@
 // RegisterPatient.jsx
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRegistration } from "../context/RegistrationContext.jsx";
 
-/**
- * Page 1 — Inscription patient : Informations personnelles
- * - Contient le formulaire d'inscription du patient.
- * - Navigue vers /register/situation après validation.
- * - L'affichage de la date et de l'heure est géré ailleurs (TopBar / Profil).
- */
+import FormCard from "../components/form/FormCard.jsx";
+import { Field, TextInput, Select } from "../components/form/Field.jsx";
+import ActionNext from "../components/form/ActionNext.jsx";
+import useDebounce from "../utils/useDebounce.js";
+
+const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const PHONE_RE = /^555-\d{5}$/; // ex: 555-12345
+
 export default function RegisterPatient() {
   const navigate = useNavigate();
   const { draft, setSection } = useRegistration();
 
-  // État du formulaire (pré-rempli si retour arrière)
   const [form, setForm] = useState({
-    lastname: draft?.patient?.lastname || "",
+    lastname:  draft?.patient?.lastname  || "",
     firstname: draft?.patient?.firstname || "",
-    phone: draft?.patient?.phone || "",
-    address: draft?.patient?.address || "",
-    religion: draft?.patient?.religion || "",
+    phone:     draft?.patient?.phone     || "",
+    address:   draft?.patient?.address   || "",
+    religion:  draft?.patient?.religion  || "",
     socialScore: draft?.patient?.socialScore || "",
   });
 
-  // Mise à jour des champs du formulaire
+  // États de validation
+  const [errors, setErrors] = useState({});
+  const [duplicate, setDuplicate] = useState(null); // message doublon ou null
+  const debouncedPhone = useDebounce(form.phone);
+  const debouncedLastname = useDebounce(form.lastname.trim().toLowerCase());
+
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((p) => ({ ...p, [name]: value }));
   };
 
-  // Validation, sauvegarde contexte et navigation
-  const handleNext = () => {
-    if (!form.lastname.trim() || !form.firstname.trim()) {
-      alert("Veuillez renseigner au minimum le nom et le prénom.");
-      return;
+  // Validation synchrones de base
+  const validate = useMemo(() => {
+    const e = {};
+    if (!form.lastname.trim()) e.lastname = "Le nom est requis.";
+    if (!form.firstname.trim()) e.firstname = "Le prénom est requis.";
+    if (!form.phone.trim()) e.phone = "Le numéro de téléphone est requis.";
+    else if (!PHONE_RE.test(form.phone)) e.phone = "Format requis : 555-XXX-XXXX (ex: 555-123-4567).";
+    return e;
+  }, [form]);
+
+  useEffect(() => setErrors(validate), [validate]);
+
+  // Vérification "doublon" côté front (pré-check)
+  // ⚠️ Nécessite une route côté API. Voir section 4 pour l'implémentation serveur.
+  useEffect(() => {
+    let active = true;
+
+    async function check() {
+      setDuplicate(null);
+      // si format invalide ou nom vide, on ne check pas encore
+      if (!PHONE_RE.test(debouncedPhone) || !debouncedLastname) return;
+
+      try {
+        // Idéalement, une route dédiée:
+        //   GET /api/patients/exists?phone=555-123-4567&lastname=doe
+        const url = `${API}/api/patients/exists?phone=${encodeURIComponent(debouncedPhone)}&lastname=${encodeURIComponent(debouncedLastname)}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json(); // { exists: boolean, matchType: "phone"|"name"|"both" }
+        if (!active) return;
+
+        if (data.exists) {
+          const msg =
+            data.matchType === "both"
+              ? "Un patient avec ce nom et ce numéro existe déjà."
+              : data.matchType === "phone"
+              ? "Ce numéro existe déjà dans la patientèle."
+              : "Un(e) patient(e) porte déjà un nom similaire.";
+          setDuplicate(msg);
+        } else {
+          setDuplicate(null);
+        }
+      } catch {
+        // silence radio si l'API n'existe pas encore
+      }
     }
-    // ✅ Sauvegarde dans le contexte global d'inscription
+    check();
+
+    return () => { active = false; };
+  }, [API, debouncedPhone, debouncedLastname]);
+
+  const hasErrors = Object.keys(errors).length > 0;
+  const disableNext = hasErrors || !!duplicate;
+
+  const handleNext = () => {
+    if (disableNext) return;
     setSection("patient", form);
-    // ➜ Étape suivante
     navigate("/register/situation");
   };
 
   return (
-    <div className="min-h-screen bg-[#f5fff8] text-black flex flex-col items-center p-6 font-sans">
-      {/* En-tête visuel (logo fictif) */}
-      <div className="w-full max-w-4xl flex justify-between items-start mb-4">
-        <div className="w-48 h-24 flex items-center justify-center shadow-lg bg-transparent" />
-      </div>
+    <section className="min-h-screen bg-[#f7faf8] px-6 py-8 flex justify-center">
+      <div className="w-full max-w-5xl space-y-6">
 
-      {/* Titre de la page */}
-      <div className="w-full flex justify-end mr-6">
-        <h1 className="text-3xl text-[#0AA15D] mb-6 self-start max-w-4xl">
-          Nouveau patient
-        </h1>
-      </div>
-
-      {/* Bloc formulaire */}
-      <div className="w-full max-w-4xl rounded-lg overflow-hidden bg-[#F0F0F0]">
-        <div className="bg-[#0aa15d] text-white px-6 py-2 text-lg font-semibold rounded-t-lg relative">
-          <span className="ml-20">Informations personnelles</span>
-        </div>
-
-        <div className="absolute ml-4 -mt-16 w-20 h-20 bg-white rounded-full z-10 border-2 border-[#0aa15d] flex items-center justify-center">
-          Test
-        </div>
-
-        {/* Formulaire contrôlé */}
-        <form
-          className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6 text-black"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleNext();
-          }}
-        >
-          {/* Nom */}
-          <div className="flex flex-col">
-            <label htmlFor="lastname" className="text-sm mb-1">Nom</label>
-            <input
+        <FormCard title="Informations personnelles" icon="🪪">
+          <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={(e) => e.preventDefault()}>
+            <Field
+              label="Nom"
               id="lastname"
-              name="lastname"
-              type="text"
-              className="border border-gray-500 bg-white text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]"
-              value={form.lastname}
-              onChange={onChange}
-              required
-            />
-          </div>
+              error={errors.lastname}
+              success={!errors.lastname && form.lastname ? "OK" : undefined}
+            >
+              <TextInput
+                id="lastname"
+                name="lastname"
+                value={form.lastname}
+                onChange={onChange}
+                invalid={!!errors.lastname}
+                valid={!errors.lastname && !!form.lastname}
+              />
+            </Field>
 
-          {/* Prénom */}
-          <div className="flex flex-col">
-            <label htmlFor="firstname" className="text-sm mb-1">Prénom</label>
-            <input
+            <Field
+              label="Prénom"
               id="firstname"
-              name="firstname"
-              type="text"
-              className="border border-gray-500 bg-white text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]"
-              value={form.firstname}
-              onChange={onChange}
-              required
-            />
-          </div>
+              error={errors.firstname}
+              success={!errors.firstname && form.firstname ? "OK" : undefined}
+            >
+              <TextInput
+                id="firstname"
+                name="firstname"
+                value={form.firstname}
+                onChange={onChange}
+                invalid={!!errors.firstname}
+                valid={!errors.firstname && !!form.firstname}
+              />
+            </Field>
 
-          {/* Téléphone */}
-          <div className="flex flex-col">
-            <label htmlFor="phone" className="text-sm mb-1">Téléphone</label>
-            <input
+            <Field
+              label="Téléphone (format 555-XXX-XXXX)"
               id="phone"
-              name="phone"
-              type="tel"
-              inputMode="tel"
-              placeholder="Ex: 555-12345"
-              className="border border-gray-500 bg-white text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]"
-              value={form.phone}
-              onChange={onChange}
-            />
-          </div>
+              error={errors.phone || duplicate}
+              success={!errors.phone && !duplicate && form.phone ? "Disponible" : undefined}
+            >
+              <TextInput
+                id="phone"
+                name="phone"
+                placeholder="ex: 555-12345"
+                value={form.phone}
+                onChange={onChange}
+                invalid={!!(errors.phone || duplicate)}
+                valid={!errors.phone && !duplicate && !!form.phone}
+              />
+            </Field>
 
-          {/* Adresse */}
-          <div className="flex flex-col">
-            <label htmlFor="address" className="text-sm mb-1">Adresse</label>
-            <select
+            <Field
+              label="Adresse (quartier)"
               id="address"
-              name="address"
-              className="border border-gray-500 text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]"
-              value={form.address}
-              onChange={onChange}
+              success={form.address ? "OK" : undefined}
             >
-              <option value="">-- Sélectionner --</option>
-              <option value="Barrio Azul">Barrio Azul</option>
-              <option value="Golden Heights">Golden Heights</option>
-              <option value="Harbor Block">Harbor Block</option>
-              <option value="Iron Tower">Iron Tower</option>
-              <option value="Lotus Quarter">Lotus Quarter</option>
-              <option value="Red Forge">Red Forge</option>
-              <option value="Rose Crown">Rose Crown</option>
-              <option value="Verdant Empire">Verdant Empire</option>
-              <option value="Extérieur de Los Santos">Extérieur de Los Santos</option>
-            </select>
-          </div>
+              <Select
+                id="address"
+                name="address"
+                value={form.address}
+                onChange={onChange}
+                valid={!!form.address}
+              >
+                <option value="">-- Sélectionner --</option>
+                <option value="Barrio Azul">Barrio Azul</option>
+                <option value="Golden Heights">Golden Heights</option>
+                <option value="Harbor Block">Harbor Block</option>
+                <option value="Iron Tower">Iron Tower</option>
+                <option value="Lotus Quarter">Lotus Quarter</option>
+                <option value="Red Forge">Red Forge</option>
+                <option value="Rose Crown">Rose Crown</option>
+                <option value="Verdant Empire">Verdant Empire</option>
+                <option value="Extérieur de Los Santos">Extérieur de Los Santos</option>
+              </Select>
+            </Field>
 
-          {/* Confession */}
-          <div className="flex flex-col">
-            <label htmlFor="religion" className="text-sm mb-1">Confession</label>
-            <select
-              id="religion"
-              name="religion"
-              className="border border-gray-500 text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]"
-              value={form.religion}
-              onChange={onChange}
-            >
-              <option value="">-- Sélectionner --</option>
-              <option value="Sans religion">Sans religion</option>
-              <option value="Christianisme">Christianisme</option>
-              <option value="Islam">Islam</option>
-              <option value="Hindouisme">Hindouisme</option>
-              <option value="Bouddhisme">Bouddhisme</option>
-              <option value="Animisme">Animisme</option>
-              <option value="Sikhisme">Sikhisme</option>
-              <option value="Judaïsme">Judaïsme</option>
-            </select>
-          </div>
+            <Field label="Confession" id="religion" success={form.religion ? "OK" : undefined}>
+              <Select
+                id="religion"
+                name="religion"
+                value={form.religion}
+                onChange={onChange}
+                valid={!!form.religion}
+              >
+                <option value="">-- Sélectionner --</option>
+                <option value="Sans religion">Sans religion</option>
+                <option value="Christianisme">Christianisme</option>
+                <option value="Islam">Islam</option>
+                <option value="Hindouisme">Hindouisme</option>
+                <option value="Bouddhisme">Bouddhisme</option>
+                <option value="Animisme">Animisme</option>
+                <option value="Sikhisme">Sikhisme</option>
+                <option value="Judaïsme">Judaïsme</option>
+              </Select>
+            </Field>
 
-          {/* Score social */}
-          <div className="flex flex-col">
-            <label htmlFor="socialScore" className="text-sm mb-1">Score social</label>
-            <input
-              id="socialScore"
-              name="socialScore"
-              type="text"
-              className="border border-gray-500 bg-white text-black px-2 py-1 focus:outline-none focus:border-[#0AA15D]"
-              value={form.socialScore}
-              onChange={onChange}
-            />
-          </div>
-        </form>
+            <Field label="Score social" id="socialScore" success={form.socialScore ? "OK" : undefined}>
+              <TextInput
+                id="socialScore"
+                name="socialScore"
+                value={form.socialScore}
+                onChange={onChange}
+                valid={!!form.socialScore}
+              />
+            </Field>
+          </form>
+        </FormCard>
+
+        <ActionNext onClick={handleNext}>
+          {disableNext ? "Compléter les champs requis" : "Valider et passer à la suite"}
+        </ActionNext>
       </div>
-
-      {/* Bouton d’action */}
-      <div className="w-full max-w-4xl flex justify-end items-center mt-6">
-        <button
-          type="button"
-          onClick={handleNext}
-          className="flex items-center gap-2 text-[#0AA15D]"
-        >
-          Valider et<br />passer à la suite
-          <span className="w-12 h-12 rounded-full bg-[#0AA15D] flex items-center justify-center hover:bg-[#0db569]">
-            <span className="ml-1">
-              <svg width="20" height="20" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2 2L10 6L2 10V2Z" fill="white"/>
-              </svg>
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
+    </section>
   );
 }
