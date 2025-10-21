@@ -70,11 +70,10 @@ export default function Patients() {
                     {p.lastname} {p.firstname}
                   </div>
                   <div className="text-sm text-neutral-400">
-                    Groupe sanguin: {p.blood_type || "—"} • Allergies:{" "}
-                    {p.allergies_summary || "—"}
+                    Adresse: {p.address || "—"} • Tel:{" "}
+                    {p.phone || "—"}
                   </div>
                 </div>
-                <div className="text-xs text-neutral-500">{p.id}</div>
               </div>
             </Link>
           ))}

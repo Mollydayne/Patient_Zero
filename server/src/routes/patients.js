@@ -11,25 +11,31 @@ router.get("/", async (req, res) => {
   const q = (req.query.query || "").trim();
   let rows;
   if (q) {
-    rows = (
-      await query(
-        `SELECT id, firstname, lastname, blood_type, allergies_summary
-         FROM patient 
-         WHERE lastname ILIKE $1 OR firstname ILIKE $1 OR id::text = $2
-         ORDER BY lastname, firstname
-         LIMIT 50`,
-        [`%${q}%`, q]
-      )
-    ).rows;
+   // Si une query est fournie
+rows = (
+  await query(
+    `SELECT p.id, p.firstname, p.lastname, pp.address, pp.phone
+       FROM patient p
+       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
+      WHERE p.lastname ILIKE $1
+         OR p.firstname ILIKE $1
+         OR p.id::text = $2
+      ORDER BY p.lastname, p.firstname
+      LIMIT 50`,
+    [`%${q}%`, q]
+  )
+).rows;
+
   } else {
     rows = (
-      await query(
-        `SELECT id, firstname, lastname, blood_type, allergies_summary
-         FROM patient 
-         ORDER BY created_at DESC
-         LIMIT 25`
-      )
-    ).rows;
+  await query(
+    `SELECT p.id, p.firstname, p.lastname, pp.address, pp.phone
+       FROM patient p
+       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
+      ORDER BY p.created_at DESC
+      LIMIT 25`
+  )
+).rows;
   }
   res.json({ items: rows });
 });
