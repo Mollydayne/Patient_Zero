@@ -2,55 +2,42 @@ import { Router } from "express";
 import { pool, query } from "../db.js";
 const router = Router();
 
-
 /**
  * GET /patients?query=...
- * Recherche par nom, prénom, adresse, téléphone (normalisé), ou ID exact
+ * - Recherche par nom/prénom/ID
+ * - Ou renvoie les 25 derniers créés
  */
 router.get("/", async (req, res) => {
   const q = (req.query.query || "").trim();
+  let rows;
+  if (q) {
+   // Si une query est fournie
+rows = (
+  await query(
+    `SELECT p.id, p.firstname, p.lastname, pp.address, pp.phone
+       FROM patient p
+       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
+      WHERE p.lastname ILIKE $1
+         OR p.firstname ILIKE $1
+         OR p.id::text = $2
+      ORDER BY p.lastname, p.firstname
+      LIMIT 50`,
+    [`%${q}%`, q]
+  )
+).rows;
 
-  try {
-    if (!q) {
-      const { rows } = await query(
-        `SELECT id, firstname, lastname, blood_type, allergies_summary,
-                address, phone
-         FROM patient
-         ORDER BY created_at DESC
-         LIMIT 25`
-      );
-      return res.json({ items: rows });
-    }
-
-    // Normalisation téléphone: garder uniquement les chiffres
-    const digits = q.replace(/\D/g, "");
-    const like = `%${q}%`;
-    const likeDigits = `%${digits}%`;
-
-    const { rows } = await query(
-      `
-      SELECT id, firstname, lastname, blood_type, allergies_summary,
-             address, phone
-      FROM patient
-      WHERE
-        lastname ILIKE $1
-        OR firstname ILIKE $1
-        OR address ILIKE $1
-        OR id::text = $2
-        OR (
-          $3 <> '%%' AND regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE $3
-        )
-      ORDER BY lastname, firstname
-      LIMIT 50
-      `,
-      [like, q, likeDigits]
-    );
-
-    res.json({ items: rows });
-  } catch (e) {
-    console.error("Erreur GET /patients:", e);
-    res.status(500).json({ error: "server_error" });
+  } else {
+    rows = (
+  await query(
+    `SELECT p.id, p.firstname, p.lastname, pp.address, pp.phone
+       FROM patient p
+       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
+      ORDER BY p.created_at DESC
+      LIMIT 25`
+  )
+).rows;
   }
+  res.json({ items: rows });
 });
 
 /**
@@ -153,7 +140,7 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "missing_fields" });
   }
 
-  // Champs "anciens"
+  // Champs "anciens" (si un jour tu branches RegisterPatientHealth.jsx)
   const blood_type = patient.blood_type || null;
   const allergies_summary = patient.allergies_summary || null;
 
