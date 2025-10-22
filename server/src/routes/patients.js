@@ -222,6 +222,96 @@ router.post("/", async (req, res) => {
 });
 
 /**
+ * PUT /api/patients/:id
+ * Met à jour patient + profile + situation + drugs (upsert) de façon transactionnelle
+ * Body: { patient?, profile?, situation?, drugs? }
+ */
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { patient = {}, profile = {}, situation = {}, drugs = {} } = req.body || {};
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Vérifier existence du patient
+    const exists = await client.query("SELECT id FROM patient WHERE id = $1", [id]);
+    if (!exists.rowCount) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    // Patient (champs optionnels)
+    if (Object.keys(patient).length) {
+      await client.query(
+        `UPDATE patient
+            SET blood_type = COALESCE($2, blood_type),
+                allergies_summary = COALESCE($3, allergies_summary),
+                dob = COALESCE($4, dob),
+                updated_at = now()
+          WHERE id = $1`,
+        [id, patient.blood_type ?? null, patient.allergies_summary ?? null, patient.dob ?? null]
+      );
+    }
+
+    // Profile (upsert)
+    if (Object.keys(profile).length) {
+      await client.query(
+        `INSERT INTO patient_profile (patient_id, phone, address, religion, social_score)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (patient_id) DO UPDATE
+         SET phone = EXCLUDED.phone,
+             address = EXCLUDED.address,
+             religion = EXCLUDED.religion,
+             social_score = EXCLUDED.social_score,
+             updated_at = now()`,
+        [id, profile.phone ?? null, profile.address ?? null, profile.religion ?? null, profile.social_score ?? null]
+      );
+    }
+
+    // Situation (upsert)
+    if (Object.keys(situation).length) {
+      await client.query(
+        `INSERT INTO patient_situation (patient_id, marital_status, job, criminal_activity, influence)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (patient_id) DO UPDATE
+         SET marital_status = EXCLUDED.marital_status,
+             job = EXCLUDED.job,
+             criminal_activity = EXCLUDED.criminal_activity,
+             influence = EXCLUDED.influence,
+             updated_at = now()`,
+        [id, situation.marital_status ?? null, situation.job ?? null, situation.criminal_activity ?? null, situation.influence ?? null]
+      );
+    }
+
+    // Drugs (upsert)
+    if (Object.keys(drugs).length) {
+      await client.query(
+        `INSERT INTO patient_drugs (patient_id, drug_use, frequency, disability, influence)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (patient_id) DO UPDATE
+         SET drug_use = EXCLUDED.drug_use,
+             frequency = EXCLUDED.frequency,
+             disability = EXCLUDED.disability,
+             influence = EXCLUDED.influence,
+             updated_at = now()`,
+        [id, drugs.drug_use ?? null, drugs.frequency ?? null, drugs.disability ?? null, drugs.influence ?? null]
+      );
+    }
+
+    await client.query("COMMIT");
+    res.status(204).end();
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Erreur PUT /patients/:id:", err);
+    res.status(500).json({ error: "server_error" });
+  } finally {
+    client.release();
+  }
+});
+
+
+/**
  * DELETE /api/patients/:id
  * Supprime un dossier patient complet
  */

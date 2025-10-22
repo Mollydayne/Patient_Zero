@@ -18,6 +18,8 @@ import RegisterPatientSituation from "./pages/RegisterPatientSituation.jsx";
 import RegisterPatientDrugs from "./pages/RegisterPatientDrugs.jsx";
 import RegisterPatientNotes from "./pages/RegisterPatientNotes.jsx";
 import RegisterSummary from "./pages/RegisterSummary.jsx";
+import PatientEdit from "./pages/PatientEdit.jsx";
+
 
 // ----- Layouts -----
 function RootLayout() {
@@ -65,6 +67,8 @@ export default function App() {
           <Route path="drugs" element={<RegisterPatientDrugs />} />
           <Route path="notes" element={<RegisterPatientNotes />} />
           <Route path="summary" element={<RegisterSummary />} />
+          <Route path="/patients/:id/edit" element={<PatientEdit />} />
+
         </Route>
 
         {/* Fallback */}
