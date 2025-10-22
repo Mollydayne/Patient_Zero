@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Patients from "./pages/Patients.jsx";
 import PatientView from "./pages/PatientView.jsx";
 import VisitView from "./pages/VisitView.jsx";
+import PatientEdit from "./pages/PatientEdit.jsx";
 
 // Inscription patient (multi-étapes)
 import RegisterPatient from "./pages/RegisterPatient.jsx";
@@ -18,8 +19,6 @@ import RegisterPatientSituation from "./pages/RegisterPatientSituation.jsx";
 import RegisterPatientDrugs from "./pages/RegisterPatientDrugs.jsx";
 import RegisterPatientNotes from "./pages/RegisterPatientNotes.jsx";
 import RegisterSummary from "./pages/RegisterSummary.jsx";
-import PatientEdit from "./pages/PatientEdit.jsx";
-
 
 // ----- Layouts -----
 function RootLayout() {
@@ -34,7 +33,7 @@ function RootLayout() {
   );
 }
 
-// Layout dédié au flow d'inscription si tu veux ajouter une barre d'étapes plus tard
+// Layout dédié au flow d'inscription
 function RegisterLayout() {
   return <Outlet />;
 }
@@ -51,6 +50,8 @@ export default function App() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="patients" element={<Patients />} />
         <Route path="patients/:id" element={<PatientView />} />
+        {/* ✅ Route d’édition déplacée hors du bloc /register */}
+        <Route path="patients/:id/edit" element={<PatientEdit />} />
         <Route path="visits/:id" element={<VisitView />} />
 
         {/* Flow d'inscription multi-étapes */}
@@ -67,8 +68,7 @@ export default function App() {
           <Route path="drugs" element={<RegisterPatientDrugs />} />
           <Route path="notes" element={<RegisterPatientNotes />} />
           <Route path="summary" element={<RegisterSummary />} />
-          <Route path="/patients/:id/edit" element={<PatientEdit />} />
-
+          {/* ❌ supprimé d'ici : <Route path="/patients/:id/edit" .../> */}
         </Route>
 
         {/* Fallback */}
