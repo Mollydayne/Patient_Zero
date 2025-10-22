@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool, query } from "../db.js";
 const router = Router();
 
+
 /**
  * GET /patients?query=...
  * Recherche par nom, prénom, adresse, téléphone (normalisé), ou ID exact
@@ -11,9 +12,9 @@ router.get("/", async (req, res) => {
 
   try {
     if (!q) {
-      const { rows } = await db(
-        `SELECT id, firstname, lastname, blood_type, allergies_summary
-           , address, phone
+      const { rows } = await query(
+        `SELECT id, firstname, lastname, blood_type, allergies_summary,
+                address, phone
          FROM patient
          ORDER BY created_at DESC
          LIMIT 25`
@@ -21,43 +22,33 @@ router.get("/", async (req, res) => {
       return res.json({ items: rows });
     }
 
-    // Pour le téléphone: on garde uniquement les chiffres, ex: "06 12-34.56.78" -> "0612345678"
+    // Normalisation téléphone: garder uniquement les chiffres
     const digits = q.replace(/\D/g, "");
+    const like = `%${q}%`;
+    const likeDigits = `%${digits}%`;
 
-    const params = {
-      like: `%${q}%`,
-      exactId: q,                 // correspondance exacte pour un id saisi
-      likeDigits: digits ? `%${digits}%` : null,
-    };
-
-    const { rows } = await db(
+    const { rows } = await query(
       `
-      SELECT id, firstname, lastname, blood_type, allergies_summary
-           , address, phone
+      SELECT id, firstname, lastname, blood_type, allergies_summary,
+             address, phone
       FROM patient
       WHERE
-        -- nom / prénom / adresse
         lastname ILIKE $1
         OR firstname ILIKE $1
         OR address ILIKE $1
-
-        -- id exact (au cas où l'utilisateur colle un UUID)
         OR id::text = $2
-
-        -- téléphone: on normalise en ne gardant que les chiffres avant comparaison
         OR (
-          $3 IS NOT NULL
-          AND regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE $3
+          $3 <> '%%' AND regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE $3
         )
       ORDER BY lastname, firstname
       LIMIT 50
       `,
-      [params.like, params.exactId, params.likeDigits]
+      [like, q, likeDigits]
     );
 
     res.json({ items: rows });
   } catch (e) {
-    console.error(e);
+    console.error("Erreur GET /patients:", e);
     res.status(500).json({ error: "server_error" });
   }
 });
