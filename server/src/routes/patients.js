@@ -4,40 +4,62 @@ const router = Router();
 
 /**
  * GET /patients?query=...
- * - Recherche par nom/prénom/ID
- * - Ou renvoie les 25 derniers créés
+ * Recherche par nom, prénom, adresse, téléphone (normalisé), ou ID exact
  */
 router.get("/", async (req, res) => {
   const q = (req.query.query || "").trim();
-  let rows;
-  if (q) {
-   // Si une query est fournie
-rows = (
-  await query(
-    `SELECT p.id, p.firstname, p.lastname, pp.address, pp.phone
-       FROM patient p
-       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
-      WHERE p.lastname ILIKE $1
-         OR p.firstname ILIKE $1
-         OR p.id::text = $2
-      ORDER BY p.lastname, p.firstname
-      LIMIT 50`,
-    [`%${q}%`, q]
-  )
-).rows;
 
-  } else {
-    rows = (
-  await query(
-    `SELECT p.id, p.firstname, p.lastname, pp.address, pp.phone
-       FROM patient p
-       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
-      ORDER BY p.created_at DESC
-      LIMIT 25`
-  )
-).rows;
+  try {
+    if (!q) {
+      const { rows } = await db(
+        `SELECT id, firstname, lastname, blood_type, allergies_summary
+           , address, phone
+         FROM patient
+         ORDER BY created_at DESC
+         LIMIT 25`
+      );
+      return res.json({ items: rows });
+    }
+
+    // Pour le téléphone: on garde uniquement les chiffres, ex: "06 12-34.56.78" -> "0612345678"
+    const digits = q.replace(/\D/g, "");
+
+    const params = {
+      like: `%${q}%`,
+      exactId: q,                 // correspondance exacte pour un id saisi
+      likeDigits: digits ? `%${digits}%` : null,
+    };
+
+    const { rows } = await db(
+      `
+      SELECT id, firstname, lastname, blood_type, allergies_summary
+           , address, phone
+      FROM patient
+      WHERE
+        -- nom / prénom / adresse
+        lastname ILIKE $1
+        OR firstname ILIKE $1
+        OR address ILIKE $1
+
+        -- id exact (au cas où l'utilisateur colle un UUID)
+        OR id::text = $2
+
+        -- téléphone: on normalise en ne gardant que les chiffres avant comparaison
+        OR (
+          $3 IS NOT NULL
+          AND regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE $3
+        )
+      ORDER BY lastname, firstname
+      LIMIT 50
+      `,
+      [params.like, params.exactId, params.likeDigits]
+    );
+
+    res.json({ items: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "server_error" });
   }
-  res.json({ items: rows });
 });
 
 /**
@@ -140,7 +162,7 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "missing_fields" });
   }
 
-  // Champs "anciens" (si un jour tu branches RegisterPatientHealth.jsx)
+  // Champs "anciens"
   const blood_type = patient.blood_type || null;
   const allergies_summary = patient.allergies_summary || null;
 

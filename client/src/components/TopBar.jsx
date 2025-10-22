@@ -54,7 +54,7 @@ function Clock({ offsetYears = 0 }) {
       <div className="text-2xl font-bold select-none">
         {hours}
         <span
-          className={`inline-block w-2 text-center ${
+          className={`inline-block w-4 text-center mx-[1px] ${
             blink ? "opacity-100" : "opacity-30"
           } transition-opacity duration-300`}
         >
