@@ -221,4 +221,41 @@ router.post("/", async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/patients/:id
+ * Supprime un dossier patient complet
+ */
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Supprimer les dépendances (tables liées)
+    await client.query("DELETE FROM patient_note WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM patient_intake WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM patient_drugs WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM patient_profile WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM patient_situation WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM visit WHERE patient_id = $1", [id]);
+
+    // Supprimer le patient lui-même
+    const result = await client.query("DELETE FROM patient WHERE id = $1 RETURNING id", [id]);
+    await client.query("COMMIT");
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    res.status(204).end();
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Erreur DELETE /patients/:id:", err);
+    res.status(500).json({ error: "server_error" });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;
