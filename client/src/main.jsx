@@ -5,16 +5,17 @@ import App from "./App.jsx";
 import "./index.css";
 import "./style.css";
 
-// importe le provider
+import { AuthProvider } from "./context/AuthContext.jsx";
 import { RegistrationProvider } from "./context/RegistrationContext.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      {/* on entoure App avec le provider */}
-      <RegistrationProvider>
-        <App />
-      </RegistrationProvider>
+      <AuthProvider>
+        <RegistrationProvider>
+          <App />
+        </RegistrationProvider>
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );
