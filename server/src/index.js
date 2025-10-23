@@ -2,33 +2,32 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { pool } from "./db.js";
+
+// Routers
+import authRouter, { requireAuth } from "./routes/auth.js";
 import patientsRouter from "./routes/patients.js";
 
 const app = express();
 
 /* ================================
-   CORS — simple, clair, avant TOUT
+   CORS — correct avec credentials
    ================================ */
-const ALLOWED_ORIGIN = "https://patient-zero-three.vercel.app";
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
-  res.header("Vary", "Origin");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") return res.sendStatus(204);
-  next();
-});
-
-
-// Preflight global (OPTIONS *)
-app.options("*", cors());
+const FRONT_ORIGIN = process.env.FRONT_ORIGIN || "http://localhost:5173";
+app.use(
+  cors({
+    origin: FRONT_ORIGIN,
+    credentials: true, // indispensable pour envoyer/recevoir le cookie JWT
+  })
+);
 
 /* ====== Middlewares ====== */
 app.use(express.json());
+app.use(cookieParser());
 
 /* ====== Healthcheck ====== */
-app.get("/health", async (_req, res) => {
+app.get("/api/health", async (_req, res) => {
   try {
     await pool.query("select 1");
     res.json({ ok: true });
@@ -37,15 +36,18 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-/* ====== API ====== */
-app.use("/api/patients", patientsRouter);
+/* ====== Auth ====== */
+app.use("/api/auth", authRouter);
+
+/* ====== API protégées ====== */
+app.use("/api/patients", requireAuth, patientsRouter);
 
 /* ====== Root ====== */
 app.get("/", (_req, res) => {
-  const front = process.env.FRONT_URL || "http://localhost:5173/";
+  const front = process.env.FRONT_URL || FRONT_ORIGIN;
   res
     .type("text")
-    .send(`Patient Zero API is running.\nTry /health or use the front on ${front}`);
+    .send(`Patient Zero API is running.\nTry /api/health or use the front on ${front}`);
 });
 
 /* ====== Boot ====== */

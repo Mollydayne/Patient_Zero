@@ -2,6 +2,10 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { RegistrationProvider } from "./context/RegistrationContext.jsx";
 
+// Auth
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import Login from "./pages/Login.jsx";
+
 // Composants globaux
 import TopBar from "./components/TopBar.jsx";
 import Navbar from "./components/Navbar.jsx";
@@ -33,7 +37,6 @@ function RootLayout() {
   );
 }
 
-// Layout dédié au flow d'inscription
 function RegisterLayout() {
   return <Outlet />;
 }
@@ -41,39 +44,42 @@ function RegisterLayout() {
 export default function App() {
   return (
     <Routes>
-      {/* Layout global */}
-      <Route element={<RootLayout />}>
-        {/* Redirection racine */}
-        <Route index element={<Navigate to="/patients" replace />} />
+      {/* 1) Page publique = /login */}
+      <Route path="/login" element={<Login />} />
 
-        {/* Pages simples */}
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="patients" element={<Patients />} />
-        <Route path="patients/:id" element={<PatientView />} />
-        {/* ✅ Route d’édition déplacée hors du bloc /register */}
-        <Route path="patients/:id/edit" element={<PatientEdit />} />
-        <Route path="visits/:id" element={<VisitView />} />
+      {/* 2) Tout le reste est protégé */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<RootLayout />}>
+          {/* À la racine, on choisit ce que voit un utilisateur connecté */}
+          <Route index element={<Navigate to="/patients" replace />} />
 
-        {/* Flow d'inscription multi-étapes */}
-        <Route
-          path="register"
-          element={
-            <RegistrationProvider>
-              <RegisterLayout />
-            </RegistrationProvider>
-          }
-        >
-          <Route index element={<RegisterPatient />} />
-          <Route path="situation" element={<RegisterPatientSituation />} />
-          <Route path="drugs" element={<RegisterPatientDrugs />} />
-          <Route path="notes" element={<RegisterPatientNotes />} />
-          <Route path="summary" element={<RegisterSummary />} />
-          {/* ❌ supprimé d'ici : <Route path="/patients/:id/edit" .../> */}
+          {/* Pages simples */}
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="patients" element={<Patients />} />
+          <Route path="patients/:id" element={<PatientView />} />
+          <Route path="patients/:id/edit" element={<PatientEdit />} />
+          <Route path="visits/:id" element={<VisitView />} />
+
+          {/* Flow d'inscription */}
+          <Route
+            path="register"
+            element={
+              <RegistrationProvider>
+                <RegisterLayout />
+              </RegistrationProvider>
+            }
+          >
+            <Route index element={<RegisterPatient />} />
+            <Route path="situation" element={<RegisterPatientSituation />} />
+            <Route path="drugs" element={<RegisterPatientDrugs />} />
+            <Route path="notes" element={<RegisterPatientNotes />} />
+            <Route path="summary" element={<RegisterSummary />} />
+          </Route>
         </Route>
-
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/patients" replace />} />
       </Route>
+
+      {/* 3) Fallback → vers /login */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }
