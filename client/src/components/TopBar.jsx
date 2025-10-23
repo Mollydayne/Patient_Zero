@@ -1,13 +1,50 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function TopBar() {
   return (
     <header
-      className="w-full flex justify-end items-center px-6 py-3
+      className="w-full flex justify-between items-center px-6 py-3
                  bg-white/60 backdrop-blur-md border-b border-[#0aa15d]/30 shadow-sm"
     >
+      <LeftActions />
       <Clock offsetYears={9} />
     </header>
+  );
+}
+
+function LeftActions() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogout() {
+    try {
+      setLoading(true);
+      await logout(); // POST /api/auth/logout + clear user
+    } catch (e) {
+      // même si l’appel échoue, on redirige pour couper l’accès
+    } finally {
+      setLoading(false);
+      navigate("/login", { replace: true });
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={handleLogout}
+        disabled={loading}
+        className="px-3 py-1.5 rounded-md border border-[#0aa15d]/40
+                   text-[#0aa15d] hover:text-white
+                   bg-white/20 hover:bg-[#16a34a]/70
+                   shadow-sm transition-colors disabled:opacity-60"
+        title="Se déconnecter"
+      >
+        {loading ? "Déconnexion…" : "Déconnexion"}
+      </button>
+    </div>
   );
 }
 
@@ -23,13 +60,11 @@ function Clock({ offsetYears = 0 }) {
   const [now, setNow] = useState(new Date());
   const [blink, setBlink] = useState(true);
 
-  // Actualisation de l'heure
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(tick);
   }, []);
 
-  // Clignotement des deux-points toutes les secondes
   useEffect(() => {
     const blinker = setInterval(() => setBlink((prev) => !prev), 1000);
     return () => clearInterval(blinker);
