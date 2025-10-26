@@ -45,11 +45,33 @@ router.get("/", async (req, res) => {
 });
 
 /**
+ * GET /patients/exists?id=<uuid>
+ * - Vérifie l'existence d'un patient sans matcher /:id ni casser si l'id n'est pas un UUID
+ */
+router.get("/exists", async (req, res) => {
+  const id = (req.query.id || "").trim();
+  const isUuid = /^[0-9a-fA-F-]{36}$/.test(id);
+  if (!isUuid) return res.json({ exists: false });
+
+  try {
+    const r = await query("SELECT 1 FROM patient WHERE id = $1", [id]);
+    res.json({ exists: r.rowCount > 0 });
+  } catch (err) {
+    console.error("Erreur GET /patients/exists :", err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+
+/**
  * GET /patients/:id
  * - Retourne le dossier complet d’un patient
  */
 router.get("/:id", async (req, res) => {
-  const id = req.params.id;
+  const id = (req.params.id || "").trim();
+  const isUuid = /^[0-9a-fA-F-]{36}$/.test(id);
+  if (!isUuid) return res.status(400).json({ error: "invalid_id" });
+
   try {
     const [
       patientRes,
