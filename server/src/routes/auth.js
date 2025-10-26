@@ -5,104 +5,131 @@ import { pool } from "../db.js";
 
 const router = Router();
 
-// --------- Config ----------
+// ---------- Config ----------
 const COOKIE_NAME = process.env.COOKIE_NAME || "token";
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 const JWT_TTL_DAYS = Number(process.env.JWT_TTL_DAYS || 7);
 
-// ⚠️ Pour un front sur un domaine différent (Vercel) :
-//    - en prod, il faut Secure:true + SameSite:'none' pour que le cookie passe cross-site.
-const sameSite =
-  process.env.COOKIE_SAMESITE?.toLowerCase?.() ||
-  (process.env.NODE_ENV === "production" ? "none" : "lax"); // "lax" en dev local
-const secure = process.env.NODE_ENV === "production"; // true en prod
+const isProd = process.env.NODE_ENV === "production";
 
-function setSessionCookie(res, payload) {
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: `${JWT_TTL_DAYS}d` });
-  res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure,
-    sameSite, // 'none' si front/back sur domaines différents en prod
-    maxAge: JWT_TTL_DAYS * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
+// SameSite par défaut : 'none' en prod (cross-site Vercel → Railway), 'lax' en dev
+const sameSite =
+  (process.env.COOKIE_SAMESITE?.toLowerCase?.() || (isProd ? "none" : "lax"));
+// Secure obligatoire en prod pour SameSite=None + HTTPS
+const secure = isProd;
+
+// ---------- Helpers ----------
+function signToken(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: `${JWT_TTL_DAYS}d` });
 }
 
-// --------- Middleware ----------
+/**
+ * Middleware d'authentification :
+ * - lit d'abord le cookie httpOnly
+ * - fallback sur le header Authorization: Bearer <token>
+ */
 export function requireAuth(req, res, next) {
   try {
-    const token = req.cookies?.[COOKIE_NAME];
+    const cookieToken = req.cookies?.[COOKIE_NAME];
+
+    const auth = req.get("Authorization");
+    const headerToken = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+
+    const token = cookieToken || headerToken;
     if (!token) return res.status(401).json({ error: "unauthorized" });
-    const payload = jwt.verify(token, JWT_SECRET); // { id, username, role }
-    req.user = payload;
+
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload; // { sub, username, role }
     next();
-  } catch {
+  } catch (_) {
     return res.status(401).json({ error: "unauthorized" });
   }
 }
 
-// Optionnel : requireRole("admin") pour protéger des routes admin
-export function requireRole(role) {
+/**
+ * Middleware d’auto — optionnel (n’échoue pas si non connecté)
+ */
+export function maybeAuth(req, _res, next) {
+  try {
+    const cookieToken = req.cookies?.[COOKIE_NAME];
+    const auth = req.get("Authorization");
+    const headerToken = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+    const token = cookieToken || headerToken;
+    if (token) req.user = jwt.verify(token, JWT_SECRET);
+  } catch (_) {
+    // ignore
+  }
+  next();
+}
+
+/**
+ * Middleware de rôles
+ */
+export function requireRole(...roles) {
   return (req, res, next) => {
-    if (!req.user || req.user.role !== role) {
+    if (!req.user) return res.status(401).json({ error: "unauthorized" });
+    if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: "forbidden" });
     }
     next();
   };
 }
 
-// --------- Routes ----------
+// ---------- Routes ----------
+
 /**
  * POST /api/auth/login
  * Body: { username, password }
- * Compare en clair (pas de hash, voulu pour ton usage)
+ * NB: comparaison en clair (selon ton implémentation actuelle).
  */
 router.post("/login", async (req, res) => {
   const { username, password } = req.body ?? {};
   if (!username || !password) {
-    return res.status(400).json({ error: "missing_fields" });
+    return res.status(400).json({ error: "missing_credentials" });
   }
 
   try {
     const { rows } = await pool.query(
-      `SELECT id, username, password, role, is_active
+      `SELECT id, username, password, role
          FROM app_user
         WHERE username = $1
         LIMIT 1`,
       [username]
     );
+
     const user = rows[0];
-    if (!user || user.is_active === false) {
+    if (!user || user.password !== password) {
+      // (si tu hashes plus tard, remplace par bcrypt.compare)
       return res.status(401).json({ error: "invalid_credentials" });
     }
 
-    // Comparaison en clair (convenu pour jeu/proto)
-    if (password !== user.password) {
-      return res.status(401).json({ error: "invalid_credentials" });
-    }
+    const payload = { sub: user.id, username: user.username, role: user.role };
+    const token = signToken(payload);
 
-    const payload = { id: user.id, username: user.username, role: user.role || "user" };
-    setSessionCookie(res, payload);
-    return res.json({ ok: true, user: payload });
-  } catch (e) {
-    console.error("auth/login error:", e);
+    // Pose le cookie httpOnly pour usage cross-site (Vercel → Railway)
+    res.cookie(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure,        // true en prod
+      sameSite,      // 'none' en prod
+      path: "/",
+      maxAge: 1000 * 60 * 60 * 24 * JWT_TTL_DAYS,
+    });
+
+    // Et retourne aussi le token (utile si tu veux l'utiliser en Bearer côté front)
+    return res.json({ ok: true, token, user: payload });
+  } catch (err) {
+    console.error("auth/login error:", err);
     return res.status(500).json({ error: "server_error" });
   }
 });
 
 /**
  * GET /api/auth/me
- * Renvoie l'utilisateur courant (ou null)
+ * Permet au front de vérifier la session.
  */
-router.get("/me", (req, res) => {
-  try {
-    const token = req.cookies?.[COOKIE_NAME];
-    if (!token) return res.json({ user: null });
-    const payload = jwt.verify(token, JWT_SECRET);
-    return res.json({ user: payload });
-  } catch {
-    return res.json({ user: null });
-  }
+router.get("/me", maybeAuth, (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "unauthorized" });
+  res.json({ user: req.user });
 });
 
 /**

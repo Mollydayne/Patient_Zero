@@ -1,57 +1,65 @@
-// server/src/index.js
-import "dotenv/config";
+// ============================
+// server/src/index.js — version corrigée
+// ============================
+
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import { pool } from "./db.js";
 
-// Routers
-import authRouter, { requireAuth } from "./routes/auth.js";
+// Routes
 import patientsRouter from "./routes/patients.js";
+import authRouter, { requireAuth } from "./routes/auth.js";
+
+dotenv.config();
 
 const app = express();
 
-/* ================================
-   CORS — correct avec credentials
-   ================================ */
-const FRONT_ORIGIN = process.env.FRONT_ORIGIN || "http://localhost:5173";
+// ============================
+// CONFIG CORS ET COOKIES
+// ============================
+const FRONT =
+  process.env.FRONT_URL ||
+  process.env.FRONT_ORIGIN ||
+  "http://localhost:5173";
+
+app.set("trust proxy", 1); // Important pour Railway derrière proxy
+
 app.use(
   cors({
-    origin: FRONT_ORIGIN,
-    credentials: true, // indispensable pour envoyer/recevoir le cookie JWT
+    origin: FRONT,
+    credentials: true, // autorise l’envoi du cookie
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+app.options("*", cors({ origin: FRONT, credentials: true }));
 
-/* ====== Middlewares ====== */
 app.use(express.json());
 app.use(cookieParser());
 
-/* ====== Healthcheck ====== */
-app.get("/api/health", async (_req, res) => {
-  try {
-    await pool.query("select 1");
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
+// ============================
+// ROUTES
+// ============================
 
-/* ====== Auth ====== */
+// Auth (login/logout)
 app.use("/api/auth", authRouter);
 
-/* ====== API protégées ====== */
+// Patients (protégées)
 app.use("/api/patients", requireAuth, patientsRouter);
 
-/* ====== Root ====== */
+// Page racine simple
 app.get("/", (_req, res) => {
-  const front = process.env.FRONT_URL || FRONT_ORIGIN;
   res
     .type("text")
-    .send(`Patient Zero API is running.\nTry /api/health or use the front on ${front}`);
+    .send(`Patient Zero API is running.\nFront authorized: ${FRONT}`);
 });
 
-/* ====== Boot ====== */
-const PORT = process.env.PORT || 4000;
+// ============================
+// LANCEMENT SERVEUR
+// ============================
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`[server] Patient Zero listening on :${PORT}`);
+  console.log(`Patient Zero listening on :${PORT}`);
 });
