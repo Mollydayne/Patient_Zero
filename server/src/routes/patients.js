@@ -1,348 +1,245 @@
 import { Router } from "express";
 import { pool, query } from "../db.js";
+
 const router = Router();
 
 /**
  * GET /patients?query=...
- * - Recherche par nom/prénom/ID
+ * - Recherche par nom, prénom, téléphone ou adresse
  * - Ou renvoie les 25 derniers créés
  */
 router.get("/", async (req, res) => {
   const q = (req.query.query || "").trim();
   let rows;
-  if (q) {
-   // Si une query est fournie
-rows = (
-  await query(
-    `SELECT p.id, p.firstname, p.lastname, pp.address, pp.phone
-       FROM patient p
-       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
-      WHERE p.lastname ILIKE $1
-         OR p.firstname ILIKE $1
-         OR p.id::text = $2
-      ORDER BY p.lastname, p.firstname
-      LIMIT 50`,
-    [`%${q}%`, q]
-  )
-).rows;
-
-  } else {
-    rows = (
-  await query(
-    `SELECT p.id, p.firstname, p.lastname, pp.address, pp.phone
-       FROM patient p
-       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
-      ORDER BY p.created_at DESC
-      LIMIT 25`
-  )
-).rows;
+  try {
+    if (q) {
+      rows = (
+        await query(
+          `SELECT id, firstname, lastname, address, phone, blood_type, allergies_summary
+           FROM patient 
+           WHERE lastname ILIKE $1
+              OR firstname ILIKE $1
+              OR address ILIKE $1
+              OR phone ILIKE $1
+              OR id::text = $2
+           ORDER BY lastname, firstname
+           LIMIT 50`,
+          [`%${q}%`, q]
+        )
+      ).rows;
+    } else {
+      rows = (
+        await query(
+          `SELECT id, firstname, lastname, address, phone, blood_type, allergies_summary
+           FROM patient 
+           ORDER BY created_at DESC 
+           LIMIT 25`
+        )
+      ).rows;
+    }
+    res.json({ items: rows });
+  } catch (err) {
+    console.error("Erreur GET /patients :", err);
+    res.status(500).json({ error: "server_error" });
   }
-  res.json({ items: rows });
 });
 
 /**
- * GET /api/patients/:id
- * - Détail patient + profil/situation/drugs + dernier snapshot + visites + notes récentes
+ * GET /patients/:id
+ * - Retourne le dossier complet d’un patient
  */
 router.get("/:id", async (req, res) => {
+  const id = req.params.id;
   try {
-    const { id } = req.params;
-
-    // Patient de base
-    const patient = (await query(`SELECT * FROM patient WHERE id = $1`, [id])).rows[0];
-    if (!patient) return res.status(404).json({ error: "not_found" });
-
-    // Requêtes parallèles pour tout le reste
     const [
-      profileRes,
+      patientRes,
       situationRes,
       drugsRes,
-      lastIntakeRes,
-      visitsRes,
+      intakeRes,
       visitNotesRes,
     ] = await Promise.all([
+      query("SELECT * FROM patient WHERE id = $1", [id]),
+      query("SELECT * FROM patient_situation WHERE patient_id = $1", [id]),
+      query("SELECT * FROM patient_drugs WHERE patient_id = $1", [id]),
+      query("SELECT * FROM patient_intake WHERE patient_id = $1", [id]),
       query(
-        `SELECT phone, address, religion, social_score
-           FROM patient_profile
-          WHERE patient_id = $1`,
-        [id]
-      ),
-      query(
-        `SELECT marital_status, job, criminal_activity, influence
-           FROM patient_situation
-          WHERE patient_id = $1`,
-        [id]
-      ),
-      query(
-        `SELECT drug_use, frequency, disability, influence
-           FROM patient_drugs
-          WHERE patient_id = $1`,
-        [id]
-      ),
-      query(
-        `SELECT snapshot, created_at
-           FROM patient_intake
+        `SELECT id, patient_id, content, reason, amount, created_at
+           FROM patient_note
           WHERE patient_id = $1
           ORDER BY created_at DESC
-          LIMIT 1`,
-        [id]
-      ),
-      query(
-        `SELECT *
-           FROM visit
-          WHERE patient_id = $1
-          ORDER BY admitted_at DESC
-          LIMIT 10`,
-        [id]
-      ),
-      query(
-        `SELECT n.*
-           FROM note n
-           JOIN visit v ON v.id = n.visit_id
-          WHERE v.patient_id = $1
-          ORDER BY n.created_at DESC
           LIMIT 10`,
         [id]
       ),
     ]);
 
+    if (patientRes.rowCount === 0) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
     res.json({
-      patient,
-      profile:   profileRes.rows[0]   || null,
-      situation: situationRes.rows[0] || null,
-      drugs:     drugsRes.rows[0]     || null,
-      last_intake: lastIntakeRes.rows[0] || null, // => { snapshot: {patient,situation,drugs,notes}, created_at }
-      visits:    visitsRes.rows,
-      notes:     visitNotesRes.rows,
+      patient: patientRes.rows[0],
+      situation: situationRes.rows[0] || {},
+      drugs: drugsRes.rows,
+      intake: intakeRes.rows,
+      notes: visitNotesRes.rows,
     });
   } catch (err) {
-    console.error("Erreur GET /patients/:id:", err);
+    console.error("Erreur GET /patients/:id :", err);
     res.status(500).json({ error: "server_error" });
   }
 });
 
-
 /**
- * POST /api/patients
- * Body accepté : { patient:{...}, situation:{...}, drugs:{...}, notes:"..." } (format actuel du front)
- * - Crée le patient
- * - Upsert profile / situation / drugs
- * - Ajoute une note si fournie
- * - Stocke le snapshot JSONB complet pour fidélité 1:1 avec RegisterSummary
+ * POST /patients
+ * - Crée un nouveau patient
  */
 router.post("/", async (req, res) => {
-  const draft = req.body || {};
-  const { patient = {}, situation = {}, drugs = {}, notes = "" } = draft;
+  const {
+    firstname,
+    lastname,
+    birthdate,
+    address,
+    phone,
+    blood_type,
+    allergies_summary,
+  } = req.body;
 
-  const firstname = (patient.firstname || "").trim();
-  const lastname  = (patient.lastname  || "").trim();
-  if (!firstname || !lastname) {
-    return res.status(400).json({ error: "missing_fields" });
-  }
-
-  // Champs "anciens" (si un jour tu branches RegisterPatientHealth.jsx)
-  const blood_type = patient.blood_type || null;
-  const allergies_summary = patient.allergies_summary || null;
-
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-
-    // 1) Patient (table existante)
-    const created = await client.query(
-      `INSERT INTO patient (firstname, lastname, blood_type, allergies_summary)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, firstname, lastname, dob, blood_type, allergies_summary, created_at`,
-      [firstname, lastname, blood_type, allergies_summary]
+    const { rows } = await query(
+      `INSERT INTO patient (firstname, lastname, birthdate, address, phone, blood_type, allergies_summary)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING *`,
+      [firstname, lastname, birthdate, address, phone, blood_type, allergies_summary]
     );
-    const p = created.rows[0];
-
-    // 2) Profil
-    await client.query(
-      `INSERT INTO patient_profile (patient_id, phone, address, religion, social_score)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (patient_id) DO UPDATE
-       SET phone = EXCLUDED.phone,
-           address = EXCLUDED.address,
-           religion = EXCLUDED.religion,
-           social_score = EXCLUDED.social_score,
-           updated_at = now()`,
-      [p.id, patient.phone || null, patient.address || null, patient.religion || null, patient.socialScore || null]
-    );
-
-    // 3) Situation
-    await client.query(
-      `INSERT INTO patient_situation (patient_id, marital_status, job, criminal_activity, influence)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (patient_id) DO UPDATE
-       SET marital_status = EXCLUDED.marital_status,
-           job = EXCLUDED.job,
-           criminal_activity = EXCLUDED.criminal_activity,
-           influence = EXCLUDED.influence,
-           updated_at = now()`,
-      [p.id, situation.maritalStatus || null, situation.job || null, situation.criminalActivity || null, situation.influence || null]
-    );
-
-    // 4) Drugs
-    await client.query(
-      `INSERT INTO patient_drugs (patient_id, drug_use, frequency, disability, influence)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (patient_id) DO UPDATE
-       SET drug_use = EXCLUDED.drug_use,
-           frequency = EXCLUDED.frequency,
-           disability = EXCLUDED.disability,
-           influence = EXCLUDED.influence,
-           updated_at = now()`,
-      [p.id, drugs.drugUse || null, drugs.frequency || null, drugs.disability || null, drugs.influence || null]
-    );
-
-    // 5) Note (si fournie)
-    if ((notes || "").trim()) {
-      await client.query(
-        `INSERT INTO patient_note (patient_id, content) VALUES ($1, $2)`,
-        [p.id, notes]
-      );
-    }
-
-    // 6) Snapshot JSONB complet (fidélité RegisterSummary)
-    await client.query(
-      `INSERT INTO patient_intake (patient_id, snapshot) VALUES ($1, $2::jsonb)`,
-      [p.id, JSON.stringify(draft)]
-    );
-
-    await client.query("COMMIT");
-    return res.status(201).json({ id: p.id, ...p });
+    res.status(201).json({ item: rows[0] });
   } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("Erreur POST /patients:", err);
-    return res.status(500).json({ error: "server_error" });
-  } finally {
-    client.release();
+    console.error("Erreur POST /patients :", err);
+    res.status(500).json({ error: "server_error" });
   }
 });
 
 /**
- * PUT /api/patients/:id
- * Met à jour patient + profile + situation + drugs (upsert) de façon transactionnelle
- * Body: { patient?, profile?, situation?, drugs? }
+ * PUT /patients/:id
+ * - Met à jour les informations d’un patient
  */
 router.put("/:id", async (req, res) => {
-  const { id } = req.params;
-  const { patient = {}, profile = {}, situation = {}, drugs = {} } = req.body || {};
+  const id = req.params.id;
+  const { firstname, lastname, birthdate, address, phone, blood_type, allergies_summary } = req.body;
+  try {
+    const { rows } = await query(
+      `UPDATE patient
+          SET firstname = $1,
+              lastname = $2,
+              birthdate = $3,
+              address = $4,
+              phone = $5,
+              blood_type = $6,
+              allergies_summary = $7
+        WHERE id = $8
+      RETURNING *`,
+      [firstname, lastname, birthdate, address, phone, blood_type, allergies_summary, id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "not_found" });
+    res.json({ item: rows[0] });
+  } catch (err) {
+    console.error("Erreur PUT /patients/:id :", err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
 
+/**
+ * DELETE /patients/:id
+ * - Supprime un patient et ses données associées
+ */
+router.delete("/:id", async (req, res) => {
+  const id = req.params.id;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // Vérifier existence du patient
-    const exists = await client.query("SELECT id FROM patient WHERE id = $1", [id]);
-    if (!exists.rowCount) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "not_found" });
-    }
-
-    // Patient (champs optionnels)
-    if (Object.keys(patient).length) {
-      await client.query(
-        `UPDATE patient
-            SET blood_type = COALESCE($2, blood_type),
-                allergies_summary = COALESCE($3, allergies_summary),
-                dob = COALESCE($4, dob),
-                updated_at = now()
-          WHERE id = $1`,
-        [id, patient.blood_type ?? null, patient.allergies_summary ?? null, patient.dob ?? null]
-      );
-    }
-
-    // Profile (upsert)
-    if (Object.keys(profile).length) {
-      await client.query(
-        `INSERT INTO patient_profile (patient_id, phone, address, religion, social_score)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (patient_id) DO UPDATE
-         SET phone = EXCLUDED.phone,
-             address = EXCLUDED.address,
-             religion = EXCLUDED.religion,
-             social_score = EXCLUDED.social_score,
-             updated_at = now()`,
-        [id, profile.phone ?? null, profile.address ?? null, profile.religion ?? null, profile.social_score ?? null]
-      );
-    }
-
-    // Situation (upsert)
-    if (Object.keys(situation).length) {
-      await client.query(
-        `INSERT INTO patient_situation (patient_id, marital_status, job, criminal_activity, influence)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (patient_id) DO UPDATE
-         SET marital_status = EXCLUDED.marital_status,
-             job = EXCLUDED.job,
-             criminal_activity = EXCLUDED.criminal_activity,
-             influence = EXCLUDED.influence,
-             updated_at = now()`,
-        [id, situation.marital_status ?? null, situation.job ?? null, situation.criminal_activity ?? null, situation.influence ?? null]
-      );
-    }
-
-    // Drugs (upsert)
-    if (Object.keys(drugs).length) {
-      await client.query(
-        `INSERT INTO patient_drugs (patient_id, drug_use, frequency, disability, influence)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (patient_id) DO UPDATE
-         SET drug_use = EXCLUDED.drug_use,
-             frequency = EXCLUDED.frequency,
-             disability = EXCLUDED.disability,
-             influence = EXCLUDED.influence,
-             updated_at = now()`,
-        [id, drugs.drug_use ?? null, drugs.frequency ?? null, drugs.disability ?? null, drugs.influence ?? null]
-      );
-    }
+    await client.query("DELETE FROM patient_note WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM patient_situation WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM patient_drugs WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM patient_intake WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM visit WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM patient WHERE id = $1", [id]);
 
     await client.query("COMMIT");
-    res.status(204).end();
+    res.json({ success: true });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("Erreur PUT /patients/:id:", err);
+    console.error("Erreur DELETE /patients/:id :", err);
     res.status(500).json({ error: "server_error" });
   } finally {
     client.release();
   }
 });
 
+/**
+ * GET /patients/:id/notes
+ * - Liste les notes (comptes-rendus) d’un patient
+ */
+router.get("/:id/notes", async (req, res) => {
+  const patientId = req.params.id;
+  try {
+    const { rows } = await query(
+      `SELECT id, patient_id, content, reason, amount, created_at
+         FROM patient_note
+        WHERE patient_id = $1
+        ORDER BY created_at DESC`,
+      [patientId]
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    console.error("Erreur GET /patients/:id/notes :", err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
 
 /**
- * DELETE /api/patients/:id
- * Supprime un dossier patient complet
+ * POST /patients/:id/notes
+ * - Crée un compte-rendu clinique pour un patient
  */
-router.delete("/:id", async (req, res) => {
-  const { id } = req.params;
-  const client = await pool.connect();
+router.post("/:id/notes", async (req, res) => {
+  const patientId = req.params.id;
+  const { content, reason, amount } = req.body || {};
 
+  if (!content || String(content).trim().length === 0) {
+    return res.status(400).json({ error: "missing_content" });
+  }
+
+  let amountValue = null;
+  if (amount !== undefined && amount !== null && String(amount).trim() !== "") {
+    const parsed = Number(amount);
+    if (Number.isNaN(parsed)) {
+      return res.status(400).json({ error: "invalid_amount" });
+    }
+    amountValue = parsed;
+  }
+
+  const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // Supprimer les dépendances (tables liées)
-    await client.query("DELETE FROM patient_note WHERE patient_id = $1", [id]);
-    await client.query("DELETE FROM patient_intake WHERE patient_id = $1", [id]);
-    await client.query("DELETE FROM patient_drugs WHERE patient_id = $1", [id]);
-    await client.query("DELETE FROM patient_profile WHERE patient_id = $1", [id]);
-    await client.query("DELETE FROM patient_situation WHERE patient_id = $1", [id]);
-    await client.query("DELETE FROM visit WHERE patient_id = $1", [id]);
-
-    // Supprimer le patient lui-même
-    const result = await client.query("DELETE FROM patient WHERE id = $1 RETURNING id", [id]);
-    await client.query("COMMIT");
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "not_found" });
+    const exists = await client.query("SELECT 1 FROM patient WHERE id = $1", [patientId]);
+    if (exists.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "patient_not_found" });
     }
 
-    res.status(204).end();
+    const { rows } = await client.query(
+      `INSERT INTO patient_note (patient_id, content, reason, amount)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, patient_id, content, reason, amount, created_at`,
+      [patientId, content, reason || null, amountValue]
+    );
+
+    await client.query("COMMIT");
+    return res.status(201).json({ item: rows[0] });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("Erreur DELETE /patients/:id:", err);
-    res.status(500).json({ error: "server_error" });
+    console.error("Erreur POST /patients/:id/notes :", err);
+    return res.status(500).json({ error: "server_error" });
   } finally {
     client.release();
   }
