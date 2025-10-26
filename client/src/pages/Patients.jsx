@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import GlossyButton from "../components/ui/GlossyButton.jsx";
+import MordechaiLogo from "../components/MordechaiLogo.jsx";
+
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -34,6 +36,13 @@ export default function Patients() {
   }, []);
 
   return (
+
+     <div className="relative min-h-screen">
+      <MordechaiLogo />
+      {/* Le reste du contenu */}
+    </div>
+  );
+}
     <section className="min-h-screen bg-[#f7faf8] px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Barre de recherche */}
