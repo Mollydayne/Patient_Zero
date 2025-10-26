@@ -1,4 +1,4 @@
-// PatientView.jsx — glossy vert/transparent + ordonnances + bouton réutilisable
+// PatientView.jsx — glossy vert/transparent + ordonnances + bouton note, sans "Nouvelle visite"
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import PrescriptionButton from "../components/prescriptions/PrescriptionButton.jsx";
@@ -8,20 +8,15 @@ function fmtDate(d, locale = "fr-FR") {
   if (!d) return "—";
   try {
     const date = typeof d === "string" ? new Date(d) : d;
-    return new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: undefined }).format(date);
-  } catch {
-    return "—";
-  }
+    return new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(date);
+  } catch { return "—"; }
 }
-
 function fmtDateTime(d, locale = "fr-FR") {
   if (!d) return "—";
   try {
     const date = typeof d === "string" ? new Date(d) : d;
     return new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: "short" }).format(date);
-  } catch {
-    return "—";
-  }
+  } catch { return "—"; }
 }
 
 function Pill({ children }) {
@@ -41,9 +36,7 @@ function GlassCard({ title, right, children }) {
             <span className="w-2 h-2 rounded-full bg-emerald-500/70" />
             {title}
           </h2>
-        ) : (
-          <div />
-        )}
+        ) : <div />}
         {right}
       </div>
       <div className="space-y-3">{children}</div>
@@ -87,14 +80,12 @@ export default function PatientView() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        if (on) setData(json), setState({ loading: false, error: null });
+        if (on) { setData(json); setState({ loading: false, error: null }); }
       } catch (e) {
         if (on) setState({ loading: false, error: e.message || "error" });
       }
     })();
-    return () => {
-      on = false;
-    };
+    return () => { on = false; };
   }, [id, API_URL]);
 
   // Fetch ordonnances
@@ -111,16 +102,10 @@ export default function PatientView() {
           const j = await r.json();
           if (on) setPrescriptions(j.items || []);
         }
-      } catch (e) {
-        // silencieux, on garde la page lisible
-        console.error("prescriptions load error", e);
-      } finally {
-        if (on) setPrescLoading(false);
-      }
+      } catch (e) { console.error("prescriptions load error", e); }
+      finally { if (on) setPrescLoading(false); }
     })();
-    return () => {
-      on = false;
-    };
+    return () => { on = false; };
   }, [id, API_URL]);
 
   // Mapping backend
@@ -129,7 +114,7 @@ export default function PatientView() {
     profile = {},
     situation: sit = {},
     drugs = {},
-    last_intake = null, // non utilisé ici, mais conservé
+    last_intake = null,
     visits = [],
     notes = [],
   } = data || {};
@@ -148,11 +133,7 @@ export default function PatientView() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
-      if (!res.ok) {
-        const msg = await res.text();
-        throw new Error(msg || `HTTP ${res.status}`);
-      }
-      // Après suppression, retour à la liste
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       navigate("/patients");
     } catch (e) {
       alert(`Suppression impossible : ${e.message || e}`);
@@ -207,9 +188,7 @@ export default function PatientView() {
         {/* Fil d'Ariane + actions */}
         <div className="flex items-center justify-between gap-3">
           <nav className="text-sm text-emerald-900/70">
-            <Link className="hover:underline" to="/patients">
-              Patients
-            </Link>{" "}
+            <Link className="hover:underline" to="/patients">Patients</Link>{" "}
             / <span className="text-emerald-950/90">{fullname}</span>
           </nav>
 
@@ -217,20 +196,24 @@ export default function PatientView() {
             {/* Générer une ordonnance depuis la fiche */}
             {patient.id ? <PrescriptionButton patientId={patient.id} /> : null}
 
+            {/* Nouveau : rédiger un compte-rendu */}
+            {patient.id ? (
+              <Link
+                to={`/patients/${patient.id}/notes/new`}
+                className="rounded-xl border border-emerald-300/60 bg-white/70 hover:bg-white px-3 py-1.5 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
+              >
+                📝 Rédiger un compte-rendu
+              </Link>
+            ) : null}
+
             <Link
               to={`/patients/${patient.id}/edit`}
               className="rounded-xl border border-emerald-300/60 bg-white/70 hover:bg-white px-3 py-1.5 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
             >
               ✏️ Modifier
             </Link>
-            <Link
-              to={`/patients/${patient.id}/visits/new`}
-              className="rounded-xl border border-emerald-300/60 bg-emerald-50/70 hover:bg-emerald-100 px-3 py-1.5 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
-            >
-              ➕ Nouvelle visite
-            </Link>
 
-            {/* Bouton supprimer avec confirmation */}
+            {/* Suppression avec confirmation */}
             {!askConfirm ? (
               <button
                 onClick={() => setAskConfirm(true)}
@@ -243,9 +226,7 @@ export default function PatientView() {
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  className={`rounded-xl px-3 py-1.5 text-white ${
-                    deleting ? "bg-rose-400" : "bg-rose-600 hover:bg-rose-700"
-                  }`}
+                  className={`rounded-xl px-3 py-1.5 text-white ${deleting ? "bg-rose-400" : "bg-rose-600 hover:bg-rose-700"}`}
                   title="Confirmer la suppression"
                 >
                   {deleting ? "Suppression…" : "Confirmer"}
@@ -277,11 +258,7 @@ export default function PatientView() {
               {patient.id ? <span className="font-mono text-xs text-emerald-900/70">{patient.id}</span> : null}
               {patient.id ? (
                 <button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(patient.id);
-                    } catch {}
-                  }}
+                  onClick={async () => { try { await navigator.clipboard.writeText(patient.id); } catch {} }}
                   className="rounded-md border border-emerald-300/60 bg-white/70 hover:bg-white px-2 py-1 text-xs text-emerald-900"
                   title="Copier l'identifiant patient"
                 >
@@ -378,19 +355,9 @@ export default function PatientView() {
             </GlassCard>
           </div>
 
-          {/* Visites */}
+          {/* Visites (bouton "Nouvelle visite" retiré) */}
           <div className="md:col-span-2">
-            <GlassCard
-              title="Visites"
-              right={
-                <Link
-                  to={`/patients/${patient.id}/visits/new`}
-                  className="text-sm rounded-md border border-emerald-300/60 bg-white/70 hover:bg-white px-2 py-1 text-emerald-900"
-                >
-                  + Ajouter une visite
-                </Link>
-              }
-            >
+            <GlassCard title="Visites">
               {visits.length ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

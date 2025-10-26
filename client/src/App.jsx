@@ -17,6 +17,7 @@ import PatientView from "./pages/PatientView.jsx";
 import VisitView from "./pages/VisitView.jsx";
 import PatientEdit from "./pages/PatientEdit.jsx";
 import PrescriptionEditor from "./pages/PrescriptionEditor.jsx";
+import NoteEditor from "./pages/NoteEditor.jsx";
 
 // Inscription patient (multi-étapes)
 import RegisterPatient from "./pages/RegisterPatient.jsx";
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="patients/:id/edit" element={<PatientEdit />} />
           <Route path="visits/:id" element={<VisitView />} />
           <Route path="/patients/:id/prescriptions/new" element={<PrescriptionEditor />} />
+          <Route path="/patients/:id/notes/new" element={<NoteEditor />} />
 
           {/* Flow d'inscription */}
           <Route

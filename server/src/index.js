@@ -12,6 +12,7 @@ import { pool } from "./db.js";
 import patientsRouter from "./routes/patients.js";
 import authRouter, { requireAuth } from "./routes/auth.js";
 import prescriptionsRouter from "./routes/prescriptions.js";
+import notesRouter from "./routes/notes.js";
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ app.use("/api/auth", authRouter);
 // Patients (protégées)
 app.use("/api/patients", requireAuth, patientsRouter);
 app.use("/api", prescriptionsRouter); // expose /api/patients/:id/prescriptions
+app.use("/api", notesRouter); // => /api/patients/:id/notes
 
 // Page racine simple
 app.get("/", (_req, res) => {
