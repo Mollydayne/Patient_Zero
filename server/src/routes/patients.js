@@ -12,31 +12,47 @@ router.get("/", async (req, res) => {
   const q = (req.query.query || "").trim();
   let rows;
   try {
-    if (q) {
-      rows = (
-        await query(
-          `SELECT id, firstname, lastname, address, phone, blood_type, allergies_summary
-           FROM patient 
-           WHERE lastname ILIKE $1
-              OR firstname ILIKE $1
-              OR address ILIKE $1
-              OR phone ILIKE $1
-              OR id::text = $2
-           ORDER BY lastname, firstname
-           LIMIT 50`,
-          [`%${q}%`, q]
-        )
-      ).rows;
-    } else {
-      rows = (
-        await query(
-          `SELECT id, firstname, lastname, address, phone, blood_type, allergies_summary
-           FROM patient 
-           ORDER BY created_at DESC 
-           LIMIT 25`
-        )
-      ).rows;
-    }
+   if (q) {
+  rows = (
+    await query(
+      `SELECT p.id,
+              p.firstname,
+              p.lastname,
+              COALESCE(pp.address, p.address) AS address,
+              COALESCE(pp.phone,   p.phone)   AS phone,
+              p.blood_type,
+              p.allergies_summary
+       FROM patient p
+       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
+       WHERE p.lastname  ILIKE $1
+          OR p.firstname ILIKE $1
+          OR pp.address  ILIKE $1
+          OR p.address   ILIKE $1
+          OR pp.phone    ILIKE $1
+          OR p.phone     ILIKE $1
+          OR p.id::text = $2
+       ORDER BY p.created_at DESC, p.lastname, p.firstname
+       LIMIT 50`,
+      [`%${q}%`, q]
+    )
+  ).rows;
+} else {
+  rows = (
+    await query(
+      `SELECT p.id,
+              p.firstname,
+              p.lastname,
+              COALESCE(pp.address, p.address) AS address,
+              COALESCE(pp.phone,   p.phone)   AS phone,
+              p.blood_type,
+              p.allergies_summary
+       FROM patient p
+       LEFT JOIN patient_profile pp ON pp.patient_id = p.id
+       ORDER BY p.created_at DESC
+       LIMIT 25`
+    )
+  ).rows;
+}
     res.json({ items: rows });
   } catch (err) {
     console.error("Erreur GET /patients :", err);
@@ -78,12 +94,14 @@ router.get("/:id", async (req, res) => {
       situationRes,
       drugsRes,
       intakeRes,
+      profileRes,
       visitNotesRes,
     ] = await Promise.all([
       query("SELECT * FROM patient WHERE id = $1", [id]),
       query("SELECT * FROM patient_situation WHERE patient_id = $1", [id]),
       query("SELECT * FROM patient_drugs WHERE patient_id = $1", [id]),
       query("SELECT * FROM patient_intake WHERE patient_id = $1", [id]),
+      query("SELECT * FROM patient_profile WHERE patient_id = $1", [id]),
       query(
         `SELECT id, patient_id, content, reason, amount, created_at
            FROM patient_note
