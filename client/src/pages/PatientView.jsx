@@ -1,13 +1,24 @@
-// PatientView.jsx — refactor glossy vert/transparent + bouton supprimer le dossier
+// PatientView.jsx — glossy vert/transparent + ordonnances + bouton réutilisable
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
+import PrescriptionButton from "../components/prescriptions/PrescriptionButton.jsx";
 
 /* Utils */
 function fmtDate(d, locale = "fr-FR") {
   if (!d) return "—";
   try {
     const date = typeof d === "string" ? new Date(d) : d;
-    return new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(date);
+    return new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: undefined }).format(date);
+  } catch {
+    return "—";
+  }
+}
+
+function fmtDateTime(d, locale = "fr-FR") {
+  if (!d) return "—";
+  try {
+    const date = typeof d === "string" ? new Date(d) : d;
+    return new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: "short" }).format(date);
   } catch {
     return "—";
   }
@@ -30,7 +41,9 @@ function GlassCard({ title, right, children }) {
             <span className="w-2 h-2 rounded-full bg-emerald-500/70" />
             {title}
           </h2>
-        ) : <div />}
+        ) : (
+          <div />
+        )}
         {right}
       </div>
       <div className="space-y-3">{children}</div>
@@ -42,7 +55,9 @@ function Row({ label, value, mono = false }) {
   return (
     <div className="grid grid-cols-12 gap-3 text-sm">
       <div className="col-span-12 md:col-span-4 lg:col-span-3 text-emerald-900/70">{label}</div>
-      <div className={`col-span-12 md:col-span-8 lg:col-span-9 ${mono ? "font-mono" : ""} text-emerald-950/90`}>{value ?? "—"}</div>
+      <div className={`col-span-12 md:col-span-8 lg:col-span-9 ${mono ? "font-mono" : ""} text-emerald-950/90`}>
+        {value ?? "—"}
+      </div>
     </div>
   );
 }
@@ -54,6 +69,10 @@ export default function PatientView() {
   const [state, setState] = useState({ loading: true, error: null });
   const [deleting, setDeleting] = useState(false);
   const [askConfirm, setAskConfirm] = useState(false);
+
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [prescLoading, setPrescLoading] = useState(true);
+
   const API_URL = import.meta.env.VITE_API_URL || "";
 
   // Fetch dossier patient
@@ -63,14 +82,40 @@ export default function PatientView() {
       setState({ loading: true, error: null });
       try {
         const res = await fetch(`${API_URL}/api/patients/${id}`, {
-   credentials: "include",
-   headers: { "Content-Type": "application/json" },
- });
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (on) setData(json), setState({ loading: false, error: null });
       } catch (e) {
         if (on) setState({ loading: false, error: e.message || "error" });
+      }
+    })();
+    return () => {
+      on = false;
+    };
+  }, [id, API_URL]);
+
+  // Fetch ordonnances
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      setPrescLoading(true);
+      try {
+        const r = await fetch(`${API_URL}/api/patients/${id}/prescriptions`, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (r.ok) {
+          const j = await r.json();
+          if (on) setPrescriptions(j.items || []);
+        }
+      } catch (e) {
+        // silencieux, on garde la page lisible
+        console.error("prescriptions load error", e);
+      } finally {
+        if (on) setPrescLoading(false);
       }
     })();
     return () => {
@@ -84,7 +129,7 @@ export default function PatientView() {
     profile = {},
     situation: sit = {},
     drugs = {},
-    last_intake = null,
+    last_intake = null, // non utilisé ici, mais conservé
     visits = [],
     notes = [],
   } = data || {};
@@ -99,10 +144,10 @@ export default function PatientView() {
     try {
       setDeleting(true);
       const res = await fetch(`${API_URL}/api/patients/${patient.id}`, {
-   method: "DELETE",
-   credentials: "include",
-   headers: { "Content-Type": "application/json" },
- });
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       if (!res.ok) {
         const msg = await res.text();
         throw new Error(msg || `HTTP ${res.status}`);
@@ -137,15 +182,18 @@ export default function PatientView() {
       <div className="min-h-screen bg-[#f7faf8] text-emerald-950 p-6">
         <div className="max-w-3xl mx-auto">
           <div className="mb-4">
-            <button onClick={() => navigate(-1)} className="rounded-xl border border-emerald-300/60 bg-emerald-50/70 px-3 py-1.5 text-emerald-900">
+            <button
+              onClick={() => navigate(-1)}
+              className="rounded-xl border border-emerald-300/60 bg-emerald-50/70 px-3 py-1.5 text-emerald-900"
+            >
               ← Retour
             </button>
           </div>
           <div className="rounded-2xl border border-rose-300/60 bg-rose-50/70 backdrop-blur px-4 py-3 shadow-sm">
             <p className="font-medium text-rose-900">Impossible de charger le dossier</p>
             <p className="opacity-90 text-sm text-rose-900/80 mt-1">
-              Détail : {String(state.error)} — vérifie l’ID patient et l’URL API
-              (<code className="font-mono">{API_URL || "VITE_API_URL manquant"}</code>).
+              Détail : {String(state.error)} — vérifie l’ID patient et l’URL API (
+              <code className="font-mono">{API_URL || "VITE_API_URL manquant"}</code>).
             </p>
           </div>
         </div>
@@ -159,10 +207,16 @@ export default function PatientView() {
         {/* Fil d'Ariane + actions */}
         <div className="flex items-center justify-between gap-3">
           <nav className="text-sm text-emerald-900/70">
-            <Link className="hover:underline" to="/patients">Patients</Link> / <span className="text-emerald-950/90">{fullname}</span>
+            <Link className="hover:underline" to="/patients">
+              Patients
+            </Link>{" "}
+            / <span className="text-emerald-950/90">{fullname}</span>
           </nav>
 
           <div className="flex gap-2">
+            {/* Générer une ordonnance depuis la fiche */}
+            {patient.id ? <PrescriptionButton patientId={patient.id} /> : null}
+
             <Link
               to={`/patients/${patient.id}/edit`}
               className="rounded-xl border border-emerald-300/60 bg-white/70 hover:bg-white px-3 py-1.5 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
@@ -189,7 +243,9 @@ export default function PatientView() {
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  className={`rounded-xl px-3 py-1.5 text-white ${deleting ? "bg-rose-400" : "bg-rose-600 hover:bg-rose-700"}`}
+                  className={`rounded-xl px-3 py-1.5 text-white ${
+                    deleting ? "bg-rose-400" : "bg-rose-600 hover:bg-rose-700"
+                  }`}
                   title="Confirmer la suppression"
                 >
                   {deleting ? "Suppression…" : "Confirmer"}
@@ -221,7 +277,11 @@ export default function PatientView() {
               {patient.id ? <span className="font-mono text-xs text-emerald-900/70">{patient.id}</span> : null}
               {patient.id ? (
                 <button
-                  onClick={async () => { try { await navigator.clipboard.writeText(patient.id); } catch {} }}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(patient.id);
+                    } catch {}
+                  }}
                   className="rounded-md border border-emerald-300/60 bg-white/70 hover:bg-white px-2 py-1 text-xs text-emerald-900"
                   title="Copier l'identifiant patient"
                 >
@@ -275,13 +335,45 @@ export default function PatientView() {
                 <ul className="space-y-3">
                   {notes.map((n) => (
                     <li key={n.id} className="rounded-xl border border-emerald-300/40 bg-white/70 backdrop-blur p-3">
-                      <div className="text-xs text-emerald-900/70 mb-1">{fmtDate(n.created_at)} — note #{String(n.id).slice(0, 8)}</div>
+                      <div className="text-xs text-emerald-900/70 mb-1">
+                        {fmtDateTime(n.created_at)} — note #{String(n.id).slice(0, 8)}
+                      </div>
                       <div className="whitespace-pre-wrap text-emerald-950/90">{n.content || "—"}</div>
                     </li>
                   ))}
                 </ul>
               ) : (
                 <div className="text-emerald-900/70">Aucune note enregistrée.</div>
+              )}
+            </GlassCard>
+          </div>
+
+          {/* Ordonnances */}
+          <div className="md:col-span-2">
+            <GlassCard
+              title="Ordonnances"
+              right={patient.id ? <PrescriptionButton patientId={patient.id} variant="ghost" /> : null}
+            >
+              {prescLoading ? (
+                <div className="text-emerald-900/70">Chargement…</div>
+              ) : prescriptions.length === 0 ? (
+                <div className="text-emerald-900/70">Aucune ordonnance pour le moment.</div>
+              ) : (
+                <div className="grid gap-3">
+                  {prescriptions.map((p) => (
+                    <article
+                      key={p.id}
+                      className="rounded-2xl p-4 bg-white/70 border border-emerald-300/40 backdrop-blur"
+                    >
+                      <div className="text-xs text-emerald-900/70 mb-2">
+                        {fmtDateTime(p.created_at)} — ordonnance #{String(p.id).slice(0, 8)}
+                      </div>
+                      <pre className="whitespace-pre-wrap text-sm leading-relaxed text-emerald-950/90">
+                        {p.content}
+                      </pre>
+                    </article>
+                  ))}
+                </div>
               )}
             </GlassCard>
           </div>

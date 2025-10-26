@@ -1,16 +1,12 @@
-// RegisterSummary.jsx — refactor glossy vert/transparent aligné au design Register*
+// RegisterSummary.jsx — version patchée avec ouverture de l’éditeur d’ordonnance
 import { Link, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { useRegistration } from "../context/RegistrationContext.jsx";
-
-// DS commun
 import FormCard from "../components/form/FormCard.jsx";
-import ActionNext from "../components/form/ActionNext.jsx";
 
 export default function RegisterSummary() {
   const navigate = useNavigate();
   const { draft, reset } = useRegistration();
-
   const { patient = {}, situation = {}, drugs = {}, notes = "" } = draft || {};
 
   const fullname = useMemo(
@@ -18,26 +14,22 @@ export default function RegisterSummary() {
     [patient.firstname, patient.lastname]
   );
 
-  // État d'enregistrement
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState(null);
 
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
+  /** Enregistre le patient en base et renvoie l'objet créé */
   async function handleSave() {
     setError("");
     setCreated(null);
-
     if (!API_URL) {
-      setError(
-        "VITE_API_URL est manquant. Renseigne l’URL de ton API (ex: https://<service>.up.railway.app) dans Vercel ou .env.local."
-      );
-      return;
+      setError("VITE_API_URL manquant");
+      return null;
     }
 
     const payload = { patient, situation, drugs, notes };
-
     try {
       setSaving(true);
       const res = await fetch(`${API_URL}/api/patients`, {
@@ -46,23 +38,28 @@ export default function RegisterSummary() {
         body: JSON.stringify(payload),
         credentials: "include",
       });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Erreur ${res.status}`);
-      }
-
+      if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setCreated(data);
-
-      // reset du brouillon
       localStorage.removeItem("registrationDraft");
       reset();
+      return data;
     } catch (e) {
-      setError(e.message || "Échec de l’enregistrement.");
+      setError(e.message || "Échec de l’enregistrement");
+      return null;
     } finally {
       setSaving(false);
     }
+  }
+
+  /** Ouvre la page d’édition d’ordonnance (enregistre si besoin) */
+  async function handlePrescription() {
+    let id = created?.id;
+    if (!id) {
+      const newPatient = await handleSave();
+      id = newPatient?.id;
+    }
+    if (id) navigate(`/patients/${id}/prescriptions/new`);
   }
 
   return (
@@ -77,49 +74,15 @@ export default function RegisterSummary() {
           <div className="text-2xl font-bold text-emerald-950/80">{fullname}</div>
         </header>
 
-        {/* Feedback état */}
-        {(created || error) && (
-          <div className="grid gap-3">
-            {created && (
-              <div className="rounded-2xl border border-emerald-300/50 bg-emerald-50/60 backdrop-blur px-4 py-3 shadow-sm">
-                <p className="font-medium text-emerald-900">✅ Dossier enregistré avec succès</p>
-                <p className="text-sm mt-1 text-emerald-900/80">
-                  ID : <span className="font-mono">{created.id || "—"}</span>
-                  {[created.firstname, created.lastname].some(Boolean) && (
-                    <>
-                      {" "}• Patient : <span className="font-semibold">{[created.firstname, created.lastname].filter(Boolean).join(" ")}</span>
-                    </>
-                  )}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => navigate("/patients")}
-                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2"
-                  >
-                    Voir la liste des patients
-                  </button>
-                  {created.id && (
-                    <button
-                      onClick={() => navigate(`/patients/${created.id}`)}
-                      className="rounded-xl border border-emerald-600/70 text-emerald-700 hover:bg-emerald-600/10 text-sm font-medium px-4 py-2"
-                    >
-                      Ouvrir le dossier
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-2xl border border-red-300/60 bg-red-50/70 backdrop-blur px-4 py-3 shadow-sm">
-                <p className="font-medium text-red-900">❌ Erreur</p>
-                <p className="text-sm mt-1 text-red-900/80">{error}</p>
-              </div>
-            )}
+        {/* Feedback */}
+        {error && (
+          <div className="rounded-2xl border border-red-300/60 bg-red-50/70 px-4 py-3">
+            <p className="font-medium text-red-900">❌ Erreur</p>
+            <p className="text-sm text-red-900/80 mt-1">{error}</p>
           </div>
         )}
 
-        {/* Résumé en cartes glossy */}
+        {/* Cartes de résumé */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormCard title="Informations personnelles" icon="👤">
             <SummaryRow label="Téléphone" value={patient.phone} />
@@ -149,21 +112,19 @@ export default function RegisterSummary() {
           </FormCard>
         </div>
 
-        {/* Actions secondaires (glossy) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <ActionTile onClick={() => { /* hook futur */ }}>Rédiger un compte‑rendu</ActionTile>
-          <ActionTile onClick={() => { /* hook futur */ }}>Consulter les compte‑rendus</ActionTile>
-          <ActionTile onClick={() => { /* hook futur */ }}>Générer une ordonnance</ActionTile>
-          <ActionTile intent="danger" onClick={() => { /* hook futur */ }}>Supprimer le dossier</ActionTile>
+        {/* Actions secondaires */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ActionTile onClick={() => { /* hook futur */ }}>Rédiger un compte-rendu</ActionTile>
+          <ActionTile onClick={handlePrescription}>Générer une ordonnance</ActionTile>
         </div>
 
-        {/* Barre d'action principale */}
+        {/* Action principale */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
               onClick={handleSave}
               disabled={saving}
-              className={`rounded-2xl px-5 py-3 text-sm font-medium shadow transition text-white
+              className={`rounded-2xl px-5 py-3 text-sm font-medium shadow text-white transition
                 ${saving ? "bg-emerald-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700"}`}
             >
               {saving ? "Enregistrement…" : "Enregistrer"}
@@ -184,11 +145,6 @@ export default function RegisterSummary() {
             Réinitialiser le brouillon
           </button>
         </div>
-
-        {/* CTA de continuité (même composant que les autres pages) */}
-        <ActionNext onClick={handleSave}>
-          {saving ? "Enregistrement…" : "Enregistrer le patient"}
-        </ActionNext>
       </div>
     </section>
   );
@@ -205,8 +161,7 @@ function SummaryRow({ label, value }) {
 
 function ActionTile({ children, intent = "primary", ...props }) {
   const base =
-    "w-full rounded-2xl py-4 px-4 text-center text-sm font-medium shadow transition border backdrop-blur " +
-    "shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]";
+    "w-full rounded-2xl py-4 px-4 text-center text-sm font-medium shadow transition border backdrop-blur shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]";
   const styles =
     intent === "danger"
       ? "border-rose-300/50 bg-rose-50/60 text-rose-900 hover:bg-rose-100/70"
