@@ -61,7 +61,10 @@ export default function RegisterPatient() {
         // Idéalement, une route dédiée:
         //   GET /api/patients/exists?phone=555-123-4567&lastname=doe
         const url = `${API}/api/patients/exists?phone=${encodeURIComponent(debouncedPhone)}&lastname=${encodeURIComponent(debouncedLastname)}`;
-        const res = await fetch(url);
+        const res = await fetch(url, {
+   credentials: "include",
+   headers: { "Content-Type": "application/json" },
+ });
         if (!res.ok) return;
         const data = await res.json(); // { exists: boolean, matchType: "phone"|"name"|"both" }
         if (!active) return;

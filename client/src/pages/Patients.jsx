@@ -12,8 +12,16 @@ export default function Patients() {
   const search = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/patients?query=${encodeURIComponent(query)}`);
-      const data = await res.json();
+ const res = await fetch(`${API}/api/patients?query=${encodeURIComponent(query)}`, {
+   credentials: "include",
+   headers: { "Content-Type": "application/json" },
+ });
+ if (!res.ok) {
+   if (res.status === 401) {
+     // ex : rediriger vers /login ou afficher un message
+   }
+   throw new Error(`HTTP ${res.status}`);
+ }      const data = await res.json();
       setPatients(data.items || []);
     } catch (err) {
       console.error("Erreur lors de la recherche :", err);

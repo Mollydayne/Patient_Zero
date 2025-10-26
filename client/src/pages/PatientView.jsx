@@ -62,7 +62,10 @@ export default function PatientView() {
     (async () => {
       setState({ loading: true, error: null });
       try {
-        const res = await fetch(`${API_URL}/api/patients/${id}`);
+        const res = await fetch(`${API_URL}/api/patients/${id}`, {
+   credentials: "include",
+   headers: { "Content-Type": "application/json" },
+ });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (on) setData(json), setState({ loading: false, error: null });
@@ -95,7 +98,11 @@ export default function PatientView() {
     if (!patient?.id || !API_URL) return;
     try {
       setDeleting(true);
-      const res = await fetch(`${API_URL}/api/patients/${patient.id}`, { method: "DELETE" });
+      const res = await fetch(`${API_URL}/api/patients/${patient.id}`, {
+   method: "DELETE",
+   credentials: "include",
+   headers: { "Content-Type": "application/json" },
+ });
       if (!res.ok) {
         const msg = await res.text();
         throw new Error(msg || `HTTP ${res.status}`);
